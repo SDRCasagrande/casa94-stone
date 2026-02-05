@@ -188,6 +188,17 @@ export default function ComparativoPage() {
     const economy = totalCompetitorCost - totalStoneCost;
     const economyPercent = totalCompetitorCost > 0 ? (economy / totalCompetitorCost) * 100 : 0;
 
+    // Salvar dados para a Proposta
+    useEffect(() => {
+        const dataToSave = {
+            volumeTotal: mode === 'simple' ? volumeTotal : advancedTotalVolume,
+            stone: { debit: stoneSimple.debit, credit1x: stoneSimple.credit1x, pix: stoneSimple.pix },
+            competitor: { name: competitorName, debit: competitorSimple.debit, credit1x: competitorSimple.credit1x, pix: competitorSimple.pix },
+            economy: economy,
+        };
+        localStorage.setItem('casa94_comparativo', JSON.stringify(dataToSave));
+    }, [mode, volumeTotal, stoneSimple, competitorSimple, competitorName, economy, advancedTotalVolume]);
+
     const formatCurrency = (value: number) =>
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
