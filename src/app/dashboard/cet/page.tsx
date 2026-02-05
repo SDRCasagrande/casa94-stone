@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -31,6 +31,11 @@ export default function CETCalculator() {
     const [containers, setContainers] = useState<BrandContainer[]>([
         { id: '1', name: 'VISA/MASTER', debit: 0.84, credit1x: 1.86, credit2to6: 2.18, credit7to12: 2.41, credit13to18: 2.41 },
     ]);
+
+    // Salva dados no localStorage para sincronizar com página de comparação
+    useEffect(() => {
+        localStorage.setItem('casa94_stone_rates', JSON.stringify({ ravRate, containers }));
+    }, [ravRate, containers]);
 
     // Calcula CET com a fórmula correta
     // Para nx: média de meses = (1 + 2 + ... + n) / n = (n + 1) / 2
@@ -94,66 +99,121 @@ export default function CETCalculator() {
     const exportPDF = () => {
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const isSingleBrand = containers.length === 1;
 
-        // Header
-        doc.setFontSize(22);
-        doc.setTextColor(16, 185, 129);
-        doc.text('CASA 94', pageWidth / 2, 20, { align: 'center' });
+        // Header - Centralizado e compacto
+        doc.setFontSize(20);
+        doc.setTextColor(0, 168, 104); // Stone green
+        doc.text('CASA 94', pageWidth / 2, 15, { align: 'center' });
 
-        doc.setFontSize(12);
+        doc.setFontSize(11);
         doc.setTextColor(100);
-        doc.text('Simulador de Taxas - CET', pageWidth / 2, 28, { align: 'center' });
+        doc.text('Calculadora CET - Custo Efetivo Total', pageWidth / 2, 22, { align: 'center' });
 
-        doc.setFontSize(10);
-        doc.setTextColor(0);
-        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 40);
-        doc.text(`RAV (Antecipação): ${ravRate}%/mês`, 14, 46);
-        doc.text('Fórmula: CET = MDR + (RAV × Parcelas)', 14, 52);
+        // Info linha
+        doc.setFontSize(9);
+        doc.setTextColor(80);
+        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}  |  RAV: ${ravRate}%/mês  |  Fórmula: CET = 1 - ((100×(1-MDR))×(1-(RAV×média_meses)))/100`, pageWidth / 2, 30, { align: 'center' });
 
-        let yPos = 65;
+        let yPos = 40;
 
-        containers.forEach((container, index) => {
+        if (isSingleBrand) {
+            // Layout centralizado para uma bandeira
+            const container = containers[0];
             const cetTable = getCETTable(container);
 
-            if (yPos > 250) {
-                doc.addPage();
-                yPos = 20;
-            }
+            // Nome da bandeira centralizado
+            doc.setFontSize(16);
+            doc.setTextColor(0, 168, 104);
+            doc.text(container.name, pageWidth / 2, yPos, { align: 'center' });
+            yPos += 7;
 
-            // Título da bandeira
-            doc.setFontSize(14);
-            doc.setTextColor(16, 185, 129);
-            doc.text(container.name, 14, yPos);
-            yPos += 8;
-
-            // Taxas MDR
+            // Taxas em uma linha
             doc.setFontSize(9);
-            doc.setTextColor(100);
-            doc.text(`Débito: ${container.debit}% | Crédito 1x: ${container.credit1x}% | 2-6x: ${container.credit2to6}% | 7-12x: ${container.credit7to12}% | 13-18x: ${container.credit13to18}%`, 14, yPos);
-            yPos += 5;
+            doc.setTextColor(80);
+            doc.text(`Débito: ${container.debit}%  |  1x: ${container.credit1x}%  |  2-6x: ${container.credit2to6}%  |  7-12x: ${container.credit7to12}%  |  13-18x: ${container.credit13to18}%`, pageWidth / 2, yPos, { align: 'center' });
+            yPos += 10;
 
-            // Tabela CET
+            // Tabela em 3 colunas (6 rows cada) - mais compacta
+            const col1 = cetTable.slice(0, 6);
+            const col2 = cetTable.slice(6, 12);
+            const col3 = cetTable.slice(12, 18);
+
+            const colWidth = 55;
+            const startX = (pageWidth - colWidth * 3) / 2;
+
             autoTable(doc, {
                 startY: yPos,
-                head: [['Parcelas', 'CET (%)']],
-                body: cetTable.map(row => [`${row.parcelas}x`, `${row.cet.toFixed(2)}%`]),
-                theme: 'striped',
-                headStyles: { fillColor: [16, 185, 129] },
-                styles: { fontSize: 8 },
-                columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 30 } },
-                margin: { left: 14 },
+                head: [['Parcelas', 'CET', 'Parcelas', 'CET', 'Parcelas', 'CET']],
+                body: col1.map((row, i) => [
+                    `${row.parcelas}x`, `${row.cet.toFixed(2)}%`,
+                    col2[i] ? `${col2[i].parcelas}x` : '', col2[i] ? `${col2[i].cet.toFixed(2)}%` : '',
+                    col3[i] ? `${col3[i].parcelas}x` : '', col3[i] ? `${col3[i].cet.toFixed(2)}%` : '',
+                ]),
+                theme: 'grid',
+                headStyles: { fillColor: [0, 168, 104], fontSize: 9, halign: 'center' },
+                styles: { fontSize: 9, halign: 'center', cellPadding: 2 },
+                columnStyles: {
+                    0: { cellWidth: 22 }, 1: { cellWidth: 28 },
+                    2: { cellWidth: 22 }, 3: { cellWidth: 28 },
+                    4: { cellWidth: 22 }, 5: { cellWidth: 28 },
+                },
+                margin: { left: startX },
+                tableWidth: 'wrap',
             });
 
-            yPos = (doc as any).lastAutoTable.finalY + 15;
-        });
+        } else {
+            // Layout com múltiplas bandeiras
+            containers.forEach((container, index) => {
+                const cetTable = getCETTable(container);
+
+                if (yPos > 240) {
+                    doc.addPage();
+                    yPos = 20;
+                }
+
+                // Título da bandeira
+                doc.setFontSize(12);
+                doc.setTextColor(0, 168, 104);
+                doc.text(container.name, 14, yPos);
+                doc.setFontSize(8);
+                doc.setTextColor(100);
+                doc.text(`Débito: ${container.debit}% | 1x: ${container.credit1x}% | 2-6x: ${container.credit2to6}% | 7-12x: ${container.credit7to12}%`, 50, yPos);
+                yPos += 5;
+
+                // Tabela compacta em 2 colunas
+                const col1 = cetTable.slice(0, 9);
+                const col2 = cetTable.slice(9, 18);
+
+                autoTable(doc, {
+                    startY: yPos,
+                    head: [['Parc.', 'CET', 'Parc.', 'CET']],
+                    body: col1.map((row, i) => [
+                        `${row.parcelas}x`, `${row.cet.toFixed(2)}%`,
+                        col2[i] ? `${col2[i].parcelas}x` : '', col2[i] ? `${col2[i].cet.toFixed(2)}%` : '',
+                    ]),
+                    theme: 'striped',
+                    headStyles: { fillColor: [0, 168, 104], fontSize: 8 },
+                    styles: { fontSize: 8, cellPadding: 1.5 },
+                    columnStyles: {
+                        0: { cellWidth: 18 }, 1: { cellWidth: 22 },
+                        2: { cellWidth: 18 }, 3: { cellWidth: 22 },
+                    },
+                    margin: { left: 14 },
+                    tableWidth: 'wrap',
+                });
+
+                yPos = (doc as any).lastAutoTable.finalY + 10;
+            });
+        }
 
         // Footer
-        const pageHeight = doc.internal.pageSize.getHeight();
         doc.setFontSize(8);
         doc.setTextColor(150);
         doc.text('Gerado por Casa94 Stone - Simulador de Taxas', pageWidth / 2, pageHeight - 10, { align: 'center' });
 
-        doc.save(`CET_${new Date().toISOString().split('T')[0]}.pdf`);
+        doc.save(`CET_${containers.map(c => c.name).join('_')}_${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
     // Exportar Excel
@@ -329,33 +389,45 @@ export default function CETCalculator() {
                                 </div>
                             </div>
 
-                            {/* Tabela CET */}
-                            <div className="p-4">
-                                <div className="flex items-center justify-between mb-3">
+                            {/* Tabela CET - 2 colunas */}
+                            <div className="p-3">
+                                <div className="flex items-center justify-between mb-2">
                                     <span className="text-xs text-slate-400 uppercase tracking-wider">Débito</span>
                                     <span className="text-sm font-bold text-emerald-400">{container.debit.toFixed(2)}%</span>
                                 </div>
 
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="border-b border-slate-700">
-                                            <th className="text-left py-2 text-slate-400 font-medium">Parcelas</th>
-                                            <th className="text-right py-2 text-slate-400 font-medium">Desconto %</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {cetTable.map((row) => (
-                                            <tr key={row.parcelas} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                                                <td className="py-1.5 text-white">{row.parcelas}x</td>
-                                                <td className={`py-1.5 text-right font-medium ${row.cet < 5 ? 'text-emerald-400' :
-                                                    row.cet < 10 ? 'text-amber-400' : 'text-red-400'
-                                                    }`}>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                    {/* Coluna 1: 1x-9x */}
+                                    <div>
+                                        <div className="grid grid-cols-2 border-b border-slate-700 pb-1 mb-1">
+                                            <span className="text-slate-400">Parc.</span>
+                                            <span className="text-slate-400 text-right">CET</span>
+                                        </div>
+                                        {cetTable.slice(0, 9).map((row) => (
+                                            <div key={row.parcelas} className="grid grid-cols-2 py-0.5 border-b border-slate-800/30">
+                                                <span className="text-white">{row.parcelas}x</span>
+                                                <span className={`text-right font-medium ${row.cet < 5 ? 'text-emerald-400' : row.cet < 10 ? 'text-amber-400' : 'text-red-400'}`}>
                                                     {row.cet.toFixed(2)}%
-                                                </td>
-                                            </tr>
+                                                </span>
+                                            </div>
                                         ))}
-                                    </tbody>
-                                </table>
+                                    </div>
+                                    {/* Coluna 2: 10x-18x */}
+                                    <div>
+                                        <div className="grid grid-cols-2 border-b border-slate-700 pb-1 mb-1">
+                                            <span className="text-slate-400">Parc.</span>
+                                            <span className="text-slate-400 text-right">CET</span>
+                                        </div>
+                                        {cetTable.slice(9, 18).map((row) => (
+                                            <div key={row.parcelas} className="grid grid-cols-2 py-0.5 border-b border-slate-800/30">
+                                                <span className="text-white">{row.parcelas}x</span>
+                                                <span className={`text-right font-medium ${row.cet < 5 ? 'text-emerald-400' : row.cet < 10 ? 'text-amber-400' : 'text-red-400'}`}>
+                                                    {row.cet.toFixed(2)}%
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     );

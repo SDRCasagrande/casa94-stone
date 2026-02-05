@@ -1,25 +1,33 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
+import { useState, useMemo, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
-// Adquirentes do mercado
-const ACQUIRERS = [
-    { id: 'stone', name: 'Stone', color: '#00A868', logo: '/logo-stone.png' },
-    { id: 'rede', name: 'Rede', color: '#ED1C24', logo: null },
-    { id: 'cielo', name: 'Cielo', color: '#0066B3', logo: null },
-    { id: 'pagseguro', name: 'PagSeguro', color: '#FFC107', logo: null },
-    { id: 'mercadopago', name: 'Mercado Pago', color: '#00B1EA', logo: null },
-    { id: 'getnet', name: 'Getnet', color: '#E31B23', logo: null },
-    { id: 'safrapay', name: 'Safrapay', color: '#F37021', logo: null },
-    { id: 'sumup', name: 'SumUp', color: '#1A1F71', logo: null },
-    { id: 'outros', name: 'Outros', color: '#6B7280', logo: null },
+// Bandeiras disponíveis com cores
+const CARD_BRANDS = [
+    { name: 'VISA', color: '#1A1F71', icon: '💳' },
+    { name: 'MASTER', color: '#EB001B', icon: '🔴' },
+    { name: 'ELO', color: '#00A4E0', icon: '🔵' },
+    { name: 'AMEX', color: '#006FCF', icon: '💎' },
+    { name: 'HIPERCARD', color: '#B3131B', icon: '🔶' },
+    { name: 'CABAL', color: '#00529B', icon: '🟦' },
 ];
 
-interface Rates {
+// Adquirentes do mercado com emojis
+const ACQUIRERS = [
+    { id: 'rede', name: 'Rede', color: '#ED1C24', icon: '🔴' },
+    { id: 'cielo', name: 'Cielo', color: '#0066B3', icon: '🔵' },
+    { id: 'pagseguro', name: 'PagSeguro', color: '#FFC107', icon: '🟡' },
+    { id: 'mercadopago', name: 'Mercado Pago', color: '#00B1EA', icon: '🟢' },
+    { id: 'getnet', name: 'Getnet', color: '#E31B23', icon: '🟠' },
+    { id: 'safrapay', name: 'Safrapay', color: '#F37021', icon: '🟧' },
+    { id: 'sumup', name: 'SumUp', color: '#1A1F71', icon: '⬜' },
+    { id: 'outros', name: 'Outros', color: '#6B7280', icon: '⚫' },
+];
+
+interface BrandRates {
     debit: number;
     credit1x: number;
     credit2to6: number;
@@ -29,456 +37,645 @@ interface Rates {
     rav: number;
 }
 
-const DEFAULT_STONE_RATES: Rates = {
-    debit: 0.84,
-    credit1x: 1.86,
-    credit2to6: 2.18,
-    credit7to12: 2.41,
-    credit13to18: 2.41,
-    pix: 0.75,
-    rav: 1.30,
+interface BrandConfig {
+    name: string;
+    enabled: boolean;
+    unified: boolean; // Se está unificada com outra bandeira
+    unifiedWith?: string; // Nome da bandeira principal que unifica
+}
+
+const DEFAULT_RATES: BrandRates = {
+    debit: 1.50, credit1x: 2.50, credit2to6: 3.00, credit7to12: 3.50, credit13to18: 3.99, pix: 1.00, rav: 1.50,
 };
 
-const DEFAULT_COMPETITOR_RATES: Rates = {
-    debit: 1.39,
-    credit1x: 2.49,
-    credit2to6: 3.19,
-    credit7to12: 3.79,
-    credit13to18: 3.99,
-    pix: 1.19,
-    rav: 1.89,
+const DEFAULT_STONE_RATES: BrandRates = {
+    debit: 0.84, credit1x: 1.86, credit2to6: 2.18, credit7to12: 2.41, credit13to18: 2.41, pix: 0.75, rav: 1.30,
 };
 
 export default function ComparativoPage() {
-    const [mode, setMode] = useState<'simples' | 'avancado'>('simples');
+    const [mode, setMode] = useState<'simple' | 'advanced'>('simple');
     const [competitorId, setCompetitorId] = useState('rede');
-    const [customName, setCustomName] = useState('');
 
-    // Taxas
-    const [stoneRates, setStoneRates] = useState<Rates>(DEFAULT_STONE_RATES);
-    const [competitorRates, setCompetitorRates] = useState<Rates>(DEFAULT_COMPETITOR_RATES);
+    // Volume (Modo Simples)
+    const [volumeTotal, setVolumeTotal] = useState(100000);
+    const [volumeDebit, setVolumeDebit] = useState(30000);
+    const [volumeCredit, setVolumeCredit] = useState(50000);
+    const [volumePix, setVolumePix] = useState(20000);
 
-    // Volume e Share
-    const [volume, setVolume] = useState(100000);
-    const [shareDebit, setShareDebit] = useState(30);
-    const [shareCredit, setShareCredit] = useState(50);
-    const [sharePix, setSharePix] = useState(20);
+    // Volume por Bandeira (Modo Avançado) - { VISA: { debit: 10000, credit: 15000 }, ... }
+    const [brandVolumes, setBrandVolumes] = useState<Record<string, { debit: number; credit: number }>>(() => {
+        const initial: Record<string, { debit: number; credit: number }> = {};
+        CARD_BRANDS.forEach(b => { initial[b.name] = { debit: 5000, credit: 10000 }; });
+        return initial;
+    });
+    const [pixVolume, setPixVolume] = useState(20000);
+
+    // Modo Simples - taxas únicas
+    const [stoneSimple, setStoneSimple] = useState<BrandRates>(DEFAULT_STONE_RATES);
+    const [competitorSimple, setCompetitorSimple] = useState<BrandRates>(DEFAULT_RATES);
+
+    // Modo Avançado - taxas por bandeira
+    const [stoneBrands, setStoneBrands] = useState<Record<string, BrandRates>>({});
+    const [competitorBrands, setCompetitorBrands] = useState<Record<string, BrandRates>>({});
+    const [brandConfigs, setBrandConfigs] = useState<BrandConfig[]>(
+        CARD_BRANDS.map((brand, i) => ({ name: brand.name, enabled: i < 2, unified: i === 1, unifiedWith: i === 1 ? 'VISA' : undefined }))
+    );
+
+    // Inicializa taxas por bandeira
+    useEffect(() => {
+        const initialStone: Record<string, BrandRates> = {};
+        const initialComp: Record<string, BrandRates> = {};
+        CARD_BRANDS.forEach(brand => {
+            initialStone[brand.name] = { ...DEFAULT_STONE_RATES };
+            initialComp[brand.name] = { ...DEFAULT_RATES };
+        });
+        setStoneBrands(initialStone);
+        setCompetitorBrands(initialComp);
+    }, []);
 
     const competitor = ACQUIRERS.find(a => a.id === competitorId) || ACQUIRERS[0];
-    const competitorName = competitorId === 'outros' ? customName || 'Outro' : competitor.name;
+    const competitorName = competitor.name;
 
-    // Cálculo do CET
+    // Calcula shares
+    const shares = useMemo(() => ({
+        debit: volumeTotal > 0 ? (volumeDebit / volumeTotal) * 100 : 0,
+        credit: volumeTotal > 0 ? (volumeCredit / volumeTotal) * 100 : 0,
+        pix: volumeTotal > 0 ? (volumePix / volumeTotal) * 100 : 0,
+    }), [volumeTotal, volumeDebit, volumeCredit, volumePix]);
+
+    // Total volume avançado
+    const advancedTotalVolume = useMemo(() => {
+        let total = pixVolume;
+        brandConfigs.filter(b => b.enabled && !b.unified).forEach(config => {
+            const vol = brandVolumes[config.name] || { debit: 0, credit: 0 };
+            total += vol.debit + vol.credit;
+        });
+        return total;
+    }, [brandVolumes, pixVolume, brandConfigs]);
+
+    // CET calculation
     const calculateCET = (mdr: number, rav: number, parcelas: number) => {
         const mdrDecimal = mdr / 100;
         const ravDecimal = rav / 100;
         const mediaMeses = (parcelas + 1) / 2;
-        const cet = 1 - (((100 * (1 - mdrDecimal)) * (1 - (ravDecimal * mediaMeses))) / 100);
-        return cet * 100;
+        return (1 - (((100 * (1 - mdrDecimal)) * (1 - (ravDecimal * mediaMeses))) / 100)) * 100;
     };
 
-    // Calcula custos
-    const calculateCosts = (rates: Rates) => {
-        const debitVolume = (volume * shareDebit) / 100;
-        const creditVolume = (volume * shareCredit) / 100;
-        const pixVolume = (volume * sharePix) / 100;
-
-        const debitCost = (debitVolume * rates.debit) / 100;
-        const pixCost = (pixVolume * rates.pix) / 100;
-
-        // CET médio do crédito
-        const avgCET = calculateCET(rates.credit1x, rates.rav, 6); // média 6x
-        const creditCost = (creditVolume * avgCET) / 100;
-
-        return {
-            debit: debitCost,
-            credit: creditCost,
-            pix: pixCost,
-            total: debitCost + creditCost + pixCost,
-        };
+    // Calcula custos (modo simples)
+    const calculateCosts = (rates: BrandRates) => {
+        const debitCost = (volumeDebit * rates.debit) / 100;
+        const pixCost = (volumePix * rates.pix) / 100;
+        const avgCET = calculateCET(rates.credit1x, rates.rav, 6);
+        const creditCost = (volumeCredit * avgCET) / 100;
+        return { debit: debitCost, credit: creditCost, pix: pixCost, total: debitCost + creditCost + pixCost };
     };
 
-    const stoneCosts = calculateCosts(stoneRates);
-    const competitorCosts = calculateCosts(competitorRates);
+    // Calcula custos (modo avançado) - por bandeira
+    const calculateAdvancedCosts = (brandsRates: Record<string, BrandRates>, pixRate: number) => {
+        let totalDebit = 0;
+        let totalCredit = 0;
+        const byBrand: Record<string, { debit: number; credit: number }> = {};
+
+        brandConfigs.filter(b => b.enabled && !b.unified).forEach(config => {
+            const rates = brandsRates[config.name] || DEFAULT_STONE_RATES;
+            const vol = brandVolumes[config.name] || { debit: 0, credit: 0 };
+
+            const debitCost = (vol.debit * rates.debit) / 100;
+            const avgCET = calculateCET(rates.credit1x, rates.rav, 6);
+            const creditCost = (vol.credit * avgCET) / 100;
+
+            byBrand[config.name] = { debit: debitCost, credit: creditCost };
+            totalDebit += debitCost;
+            totalCredit += creditCost;
+        });
+
+        const pixCost = (pixVolume * pixRate) / 100;
+        return { debit: totalDebit, credit: totalCredit, pix: pixCost, total: totalDebit + totalCredit + pixCost, byBrand };
+    };
+
+    // Custos finais baseados no modo
+    const stoneCosts = mode === 'simple'
+        ? calculateCosts(stoneSimple)
+        : calculateAdvancedCosts(stoneBrands, stoneSimple.pix);
+    const competitorCosts = mode === 'simple'
+        ? calculateCosts(competitorSimple)
+        : calculateAdvancedCosts(competitorBrands, competitorSimple.pix);
     const economy = competitorCosts.total - stoneCosts.total;
     const economyPercent = competitorCosts.total > 0 ? (economy / competitorCosts.total) * 100 : 0;
 
     const formatCurrency = (value: number) =>
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-    const inputClass = "w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent";
+    // Puxar dados do CET
+    const pullFromCET = () => {
+        const data = localStorage.getItem('casa94_stone_rates');
+        if (data) {
+            const { ravRate, containers } = JSON.parse(data);
+            if (containers && containers.length > 0) {
+                // Atualiza taxas Stone com dados do CET
+                const first = containers[0];
+                setStoneSimple({
+                    debit: first.debit,
+                    credit1x: first.credit1x,
+                    credit2to6: first.credit2to6,
+                    credit7to12: first.credit7to12,
+                    credit13to18: first.credit13to18,
+                    pix: stoneSimple.pix,
+                    rav: ravRate,
+                });
 
-    // Exportar PDF
-    const exportPDF = () => {
-        const doc = new jsPDF();
-        const pageWidth = doc.internal.pageSize.getWidth();
-
-        // Header com logo Stone
-        doc.setFontSize(24);
-        doc.setTextColor(0, 168, 104);
-        doc.text('CASA 94', pageWidth / 2, 20, { align: 'center' });
-        doc.setFontSize(12);
-        doc.setTextColor(100);
-        doc.text('Comparativo de Taxas', pageWidth / 2, 28, { align: 'center' });
-
-        doc.setFontSize(10);
-        doc.setTextColor(0);
-        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 40);
-        doc.text(`Volume Mensal: ${formatCurrency(volume)}`, 14, 46);
-        doc.text(`Share: Débito ${shareDebit}% | Crédito ${shareCredit}% | PIX ${sharePix}%`, 14, 52);
-
-        // Tabela comparativa
-        autoTable(doc, {
-            startY: 60,
-            head: [['', 'Stone', competitorName, 'Diferença']],
-            body: [
-                ['Débito', `${stoneRates.debit}%`, `${competitorRates.debit}%`, `${(competitorRates.debit - stoneRates.debit).toFixed(2)}%`],
-                ['Crédito 1x', `${stoneRates.credit1x}%`, `${competitorRates.credit1x}%`, `${(competitorRates.credit1x - stoneRates.credit1x).toFixed(2)}%`],
-                ['Crédito 2-6x', `${stoneRates.credit2to6}%`, `${competitorRates.credit2to6}%`, `${(competitorRates.credit2to6 - stoneRates.credit2to6).toFixed(2)}%`],
-                ['Crédito 7-12x', `${stoneRates.credit7to12}%`, `${competitorRates.credit7to12}%`, `${(competitorRates.credit7to12 - stoneRates.credit7to12).toFixed(2)}%`],
-                ['PIX', `${stoneRates.pix}%`, `${competitorRates.pix}%`, `${(competitorRates.pix - stoneRates.pix).toFixed(2)}%`],
-                ['RAV', `${stoneRates.rav}%`, `${competitorRates.rav}%`, `${(competitorRates.rav - stoneRates.rav).toFixed(2)}%`],
-            ],
-            theme: 'striped',
-            headStyles: { fillColor: [0, 168, 104] },
-        });
-
-        // Custos
-        const lastY = (doc as any).lastAutoTable.finalY + 10;
-        autoTable(doc, {
-            startY: lastY,
-            head: [['Custo Mensal', 'Stone', competitorName]],
-            body: [
-                ['Débito', formatCurrency(stoneCosts.debit), formatCurrency(competitorCosts.debit)],
-                ['Crédito', formatCurrency(stoneCosts.credit), formatCurrency(competitorCosts.credit)],
-                ['PIX', formatCurrency(stoneCosts.pix), formatCurrency(competitorCosts.pix)],
-                ['TOTAL', formatCurrency(stoneCosts.total), formatCurrency(competitorCosts.total)],
-            ],
-            theme: 'striped',
-            headStyles: { fillColor: [0, 168, 104] },
-        });
-
-        // Economia
-        const economyY = (doc as any).lastAutoTable.finalY + 15;
-        doc.setFontSize(16);
-        doc.setTextColor(0, 168, 104);
-        doc.text(`Economia Mensal com Stone: ${formatCurrency(economy)}`, pageWidth / 2, economyY, { align: 'center' });
-        doc.setFontSize(12);
-        doc.text(`Economia Anual: ${formatCurrency(economy * 12)}`, pageWidth / 2, economyY + 8, { align: 'center' });
-
-        doc.save(`Comparativo_Stone_vs_${competitorName}_${new Date().toISOString().split('T')[0]}.pdf`);
+                // Atualiza taxas por bandeira também
+                const newStoneBrands = { ...stoneBrands };
+                containers.forEach((c: any) => {
+                    const brandName = c.name.toUpperCase();
+                    if (brandName.includes('VISA') || brandName.includes('MASTER')) {
+                        newStoneBrands['VISA'] = { ...newStoneBrands['VISA'], ...c, rav: ravRate };
+                        newStoneBrands['MASTER'] = { ...newStoneBrands['MASTER'], ...c, rav: ravRate };
+                    } else {
+                        const matchedBrand = CARD_BRANDS.find(b => brandName.includes(b.name));
+                        if (matchedBrand) {
+                            newStoneBrands[matchedBrand.name] = { ...newStoneBrands[matchedBrand.name], ...c, rav: ravRate };
+                        }
+                    }
+                });
+                setStoneBrands(newStoneBrands);
+                alert('✅ Taxas importadas do Calculador CET!');
+            }
+        } else {
+            alert('⚠️ Nenhum dado encontrado. Configure as taxas no Calculador CET primeiro.');
+        }
     };
 
-    // Exportar Excel
+    // Reset
+    const resetAll = () => {
+        setStoneSimple(DEFAULT_STONE_RATES);
+        setCompetitorSimple(DEFAULT_RATES);
+        setVolumeTotal(100000);
+        setVolumeDebit(30000);
+        setVolumeCredit(50000);
+        setVolumePix(20000);
+    };
+
+    // Get enabled brands (for advanced mode)
+    const enabledBrands = brandConfigs.filter(b => b.enabled && !b.unified);
+
+    // Toggle brand
+    const toggleBrand = (name: string) => {
+        setBrandConfigs(prev => prev.map(b => b.name === name ? { ...b, enabled: !b.enabled } : b));
+    };
+
+    // Unify brand
+    const unifyBrand = (name: string, withBrand: string | null) => {
+        setBrandConfigs(prev => prev.map(b =>
+            b.name === name
+                ? { ...b, unified: !!withBrand, unifiedWith: withBrand || undefined }
+                : b
+        ));
+    };
+
+    // Export PDF - Paisagem, profissional
+    const exportPDF = () => {
+        const doc = new jsPDF({ orientation: 'landscape' });
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+
+        // Header com logo Stone (texto estilizado) + CASA 94
+        doc.setFillColor(0, 168, 104);
+        doc.rect(0, 0, pageWidth, 25, 'F');
+
+        doc.setFontSize(18);
+        doc.setTextColor(255, 255, 255);
+        doc.text('stone', 20, 16);
+        doc.setFontSize(8);
+        doc.text('®', 45, 10);
+
+        doc.setFontSize(22);
+        doc.text('CASA 94', pageWidth / 2, 16, { align: 'center' });
+
+        doc.setFontSize(10);
+        doc.text(`Fidelidade: 13 Meses`, pageWidth - 20, 16, { align: 'right' });
+
+        // Info linha
+        doc.setTextColor(80);
+        doc.setFontSize(9);
+        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 20, 35);
+        doc.text(`TPV / Volume: ${formatCurrency(volumeTotal)}`, 80, 35);
+        doc.text(`Débito: ${shares.debit.toFixed(0)}% | Crédito: ${shares.credit.toFixed(0)}% | PIX: ${shares.pix.toFixed(0)}%`, 160, 35);
+
+        // COLUNA 1: Taxas Stone (esquerda)
+        doc.setFontSize(11);
+        doc.setTextColor(0, 168, 104);
+        doc.text('TAXAS STONE', 20, 48);
+
+        autoTable(doc, {
+            startY: 52,
+            margin: { left: 20 },
+            tableWidth: 80,
+            head: [['Tipo', 'Taxa']],
+            body: [
+                ['Débito', `${stoneSimple.debit.toFixed(2)}%`],
+                ['Crédito à vista', `${stoneSimple.credit1x.toFixed(2)}%`],
+                ['Parcelado 2 a 6x', `${stoneSimple.credit2to6.toFixed(2)}%`],
+                ['Parcelado 7 a 12x', `${stoneSimple.credit7to12.toFixed(2)}%`],
+                ['Parcelado 13 a 18x', `${stoneSimple.credit13to18.toFixed(2)}%`],
+                ['Antecipação (RAV)', `${stoneSimple.rav.toFixed(2)}%`],
+                ['PIX', `${stoneSimple.pix.toFixed(2)}%`],
+            ],
+            headStyles: { fillColor: [0, 168, 104], fontSize: 8 },
+            bodyStyles: { fontSize: 8 },
+            columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 30, halign: 'right' } },
+        });
+
+        // COLUNA 2: CET Stone VISA/MASTER (centro-esquerda)
+        doc.setFontSize(11);
+        doc.setTextColor(0, 168, 104);
+        doc.text('CET VISA/MASTER', 115, 48);
+        doc.setFontSize(7);
+        doc.setTextColor(100);
+        doc.text(`Débito: ${stoneSimple.debit.toFixed(2)}%`, 115, 53);
+
+        // Calcular CET table para VISA/MASTER
+        const ravRate = stoneSimple.rav;
+        const getCET = (mdr: number, parcelas: number) => {
+            const avgMonths = (1 + parcelas) / 2;
+            const ravFactor = 1 - (ravRate / 100 * avgMonths);
+            return (1 - ((100 * (1 - mdr / 100)) * ravFactor) / 100) * 100;
+        };
+
+        const cetData: string[][] = [];
+        for (let i = 1; i <= 9; i++) {
+            const mdr = i === 1 ? stoneSimple.credit1x : i <= 6 ? stoneSimple.credit2to6 : stoneSimple.credit7to12;
+            const cet1 = getCET(mdr, i);
+            const mdr2 = i + 9 <= 12 ? stoneSimple.credit7to12 : stoneSimple.credit13to18;
+            const cet2 = getCET(mdr2, i + 9);
+            cetData.push([`${i}x`, `${cet1.toFixed(2)}%`, `${i + 9}x`, `${cet2.toFixed(2)}%`]);
+        }
+
+        autoTable(doc, {
+            startY: 56,
+            margin: { left: 115 },
+            tableWidth: 65,
+            head: [['Parc.', 'CET', 'Parc.', 'CET']],
+            body: cetData,
+            headStyles: { fillColor: [0, 168, 104], fontSize: 7 },
+            bodyStyles: { fontSize: 7 },
+            columnStyles: {
+                0: { cellWidth: 12 }, 1: { cellWidth: 20, halign: 'right' },
+                2: { cellWidth: 12 }, 3: { cellWidth: 20, halign: 'right' }
+            },
+        });
+
+        // COLUNA 3: Taxas Concorrente (centro-direita)
+        doc.setFontSize(11);
+        doc.setTextColor(220, 53, 69);
+        doc.text(`TAXAS ${competitorName.toUpperCase()}`, 195, 48);
+
+        autoTable(doc, {
+            startY: 52,
+            margin: { left: 195 },
+            tableWidth: 80,
+            head: [['Tipo', 'Taxa']],
+            body: [
+                ['Débito', `${competitorSimple.debit.toFixed(2)}%`],
+                ['Crédito à vista', `${competitorSimple.credit1x.toFixed(2)}%`],
+                ['Parcelado 2 a 6x', `${competitorSimple.credit2to6.toFixed(2)}%`],
+                ['Parcelado 7 a 12x', `${competitorSimple.credit7to12.toFixed(2)}%`],
+                ['Parcelado 13 a 18x', `${competitorSimple.credit13to18.toFixed(2)}%`],
+                ['Antecipação (RAV)', `${competitorSimple.rav.toFixed(2)}%`],
+                ['PIX', `${competitorSimple.pix.toFixed(2)}%`],
+            ],
+            headStyles: { fillColor: [220, 53, 69], fontSize: 8 },
+            bodyStyles: { fontSize: 8 },
+            columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 30, halign: 'right' } },
+        });
+
+        // Economia - Rodapé destacado
+        const footerY = pageHeight - 30;
+        if (economy > 0) {
+            doc.setFillColor(0, 168, 104);
+            doc.rect(20, footerY, pageWidth - 40, 20, 'F');
+            doc.setTextColor(255);
+            doc.setFontSize(12);
+            doc.text('💰 ECONOMIA COM STONE', 30, footerY + 8);
+            doc.setFontSize(16);
+            doc.text(`${formatCurrency(economy)} /mês`, pageWidth / 2, footerY + 10, { align: 'center' });
+            doc.setFontSize(12);
+            doc.text(`${formatCurrency(economy * 12)} /ano`, pageWidth / 2, footerY + 17, { align: 'center' });
+            doc.text(`${economyPercent.toFixed(1)}% mais barato`, pageWidth - 30, footerY + 12, { align: 'right' });
+        } else if (economy < 0) {
+            doc.setFillColor(255, 193, 7);
+            doc.rect(20, footerY, pageWidth - 40, 20, 'F');
+            doc.setTextColor(0);
+            doc.setFontSize(12);
+            doc.text(`${competitorName} oferece taxas mais competitivas: ${formatCurrency(Math.abs(economy))}/mês`, pageWidth / 2, footerY + 12, { align: 'center' });
+        }
+
+        // Custos totais
+        const costsY = footerY - 15;
+        doc.setFontSize(9);
+        doc.setTextColor(80);
+        doc.text(`Stone: D ${formatCurrency(stoneCosts.debit)} | C ${formatCurrency(stoneCosts.credit)} | P ${formatCurrency(stoneCosts.pix)} = ${formatCurrency(stoneCosts.total)}`, 20, costsY);
+        doc.text(`${competitorName}: D ${formatCurrency(competitorCosts.debit)} | C ${formatCurrency(competitorCosts.credit)} | P ${formatCurrency(competitorCosts.pix)} = ${formatCurrency(competitorCosts.total)}`, pageWidth / 2, costsY);
+
+        doc.save(`Comparativo_Stone_vs_${competitorName}.pdf`);
+    };
+
+    // Export Excel
     const exportExcel = () => {
         const wsData = [
             ['CASA 94 - Comparativo de Taxas'],
             [''],
-            ['Data:', new Date().toLocaleDateString('pt-BR')],
-            ['Volume Mensal:', formatCurrency(volume)],
-            ['Share Débito:', `${shareDebit}%`],
-            ['Share Crédito:', `${shareCredit}%`],
-            ['Share PIX:', `${sharePix}%`],
+            ['Volume Total:', formatCurrency(volumeTotal)],
             [''],
-            ['Taxas', 'Stone', competitorName, 'Diferença'],
-            ['Débito', `${stoneRates.debit}%`, `${competitorRates.debit}%`, `${(competitorRates.debit - stoneRates.debit).toFixed(2)}%`],
-            ['Crédito 1x', `${stoneRates.credit1x}%`, `${competitorRates.credit1x}%`, `${(competitorRates.credit1x - stoneRates.credit1x).toFixed(2)}%`],
-            ['Crédito 2-6x', `${stoneRates.credit2to6}%`, `${competitorRates.credit2to6}%`, `${(competitorRates.credit2to6 - stoneRates.credit2to6).toFixed(2)}%`],
-            ['Crédito 7-12x', `${stoneRates.credit7to12}%`, `${competitorRates.credit7to12}%`, `${(competitorRates.credit7to12 - stoneRates.credit7to12).toFixed(2)}%`],
-            ['PIX', `${stoneRates.pix}%`, `${competitorRates.pix}%`, `${(competitorRates.pix - stoneRates.pix).toFixed(2)}%`],
-            ['RAV', `${stoneRates.rav}%`, `${competitorRates.rav}%`, `${(competitorRates.rav - stoneRates.rav).toFixed(2)}%`],
-            [''],
-            ['Custos Mensais', 'Stone', competitorName],
-            ['Débito', formatCurrency(stoneCosts.debit), formatCurrency(competitorCosts.debit)],
-            ['Crédito', formatCurrency(stoneCosts.credit), formatCurrency(competitorCosts.credit)],
-            ['PIX', formatCurrency(stoneCosts.pix), formatCurrency(competitorCosts.pix)],
-            ['TOTAL', formatCurrency(stoneCosts.total), formatCurrency(competitorCosts.total)],
+            ['Taxa', 'Stone', competitorName, 'Diferença'],
+            ['Débito', `${stoneSimple.debit}%`, `${competitorSimple.debit}%`, `${(competitorSimple.debit - stoneSimple.debit).toFixed(2)}%`],
+            ['Crédito 1x', `${stoneSimple.credit1x}%`, `${competitorSimple.credit1x}%`, `${(competitorSimple.credit1x - stoneSimple.credit1x).toFixed(2)}%`],
             [''],
             ['ECONOMIA MENSAL', formatCurrency(economy)],
             ['ECONOMIA ANUAL', formatCurrency(economy * 12)],
         ];
-
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Comparativo');
-        XLSX.writeFile(wb, `Comparativo_Stone_vs_${competitorName}_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.writeFile(wb, `Comparativo_Stone_vs_${competitorName}.xlsx`);
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             {/* Header */}
-            <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold text-white mb-1">Comparação de Taxas</h1>
-                    <p className="text-slate-400 text-sm">Stone vs Concorrente - Calcule a economia</p>
+                    <h1 className="text-xl font-bold text-white">Comparação de Taxas</h1>
+                    <p className="text-slate-400 text-sm">Stone vs Concorrente</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    {/* Toggle Simples/Avançado */}
-                    <div className="flex bg-slate-800 rounded-xl p-1">
-                        <button
-                            onClick={() => setMode('simples')}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'simples' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'
-                                }`}
-                        >
+                <div className="flex items-center gap-2 flex-wrap">
+                    {/* Mode Toggle */}
+                    <div className="flex bg-slate-800 rounded-lg p-0.5">
+                        <button onClick={() => setMode('simple')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${mode === 'simple' ? 'bg-[#00A868] text-white' : 'text-slate-400 hover:text-white'}`}>
                             Simples
                         </button>
-                        <button
-                            onClick={() => setMode('avancado')}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'avancado' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'
-                                }`}
-                        >
+                        <button onClick={() => setMode('advanced')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${mode === 'advanced' ? 'bg-[#00A868] text-white' : 'text-slate-400 hover:text-white'}`}>
                             Avançado
                         </button>
                     </div>
-                    <button
-                        onClick={exportPDF}
-                        className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 font-medium rounded-xl transition-all"
-                    >
-                        📄 PDF
-                    </button>
-                    <button
-                        onClick={exportExcel}
-                        className="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 font-medium rounded-xl transition-all"
-                    >
-                        📊 Excel
-                    </button>
+                    <button onClick={resetAll} className="px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 text-slate-300 text-xs rounded-lg">🔄 Limpar</button>
+                    <button onClick={pullFromCET} className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-xs rounded-lg">📡 Puxar CET</button>
+                    <button onClick={exportPDF} className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs rounded-lg">📄 PDF</button>
+                    <button onClick={exportExcel} className="px-3 py-1.5 bg-green-500/20 hover:bg-green-500/30 text-green-300 text-xs rounded-lg">📊 Excel</button>
                 </div>
             </div>
 
-            {/* Volume e Share */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">📊 Volume e Share Transacional</h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                        <label className="block text-sm text-slate-400 mb-2">Volume Mensal (R$)</label>
-                        <input
-                            type="number"
-                            value={volume}
-                            onChange={(e) => setVolume(Number(e.target.value))}
-                            className={inputClass}
-                        />
+            {/* Volume + Share - Cards Grandes */}
+            {mode === 'simple' && (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                    {/* TPV */}
+                    <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-2">
+                        <label className="text-[10px] text-slate-500">TPV Total</label>
+                        <input type="number" value={volumeTotal} onChange={(e) => setVolumeTotal(Number(e.target.value))}
+                            className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white text-sm mt-1" />
+                        <div className="grid grid-cols-3 gap-1 mt-1">
+                            <div>
+                                <label className="text-[8px] text-slate-500">Déb</label>
+                                <input type="number" value={volumeDebit} onChange={(e) => setVolumeDebit(Number(e.target.value))}
+                                    className="w-full bg-slate-800/50 border border-slate-700 rounded px-1 py-0.5 text-white text-[10px] text-center" />
+                            </div>
+                            <div>
+                                <label className="text-[8px] text-slate-500">Créd</label>
+                                <input type="number" value={volumeCredit} onChange={(e) => setVolumeCredit(Number(e.target.value))}
+                                    className="w-full bg-slate-800/50 border border-slate-700 rounded px-1 py-0.5 text-white text-[10px] text-center" />
+                            </div>
+                            <div>
+                                <label className="text-[8px] text-slate-500">PIX</label>
+                                <input type="number" value={volumePix} onChange={(e) => setVolumePix(Number(e.target.value))}
+                                    className="w-full bg-slate-800/50 border border-slate-700 rounded px-1 py-0.5 text-white text-[10px] text-center" />
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label className="block text-sm text-slate-400 mb-2">Débito (%)</label>
-                        <input
-                            type="number"
-                            value={shareDebit}
-                            onChange={(e) => setShareDebit(Number(e.target.value))}
-                            className={inputClass}
-                        />
+                    {/* Share Débito */}
+                    <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-2 text-center flex flex-col justify-center">
+                        <span className="text-blue-400 text-sm">💳</span>
+                        <p className="text-2xl font-bold text-blue-400">{shares.debit.toFixed(0)}%</p>
+                        <p className="text-[10px] text-slate-400">Débito</p>
                     </div>
-                    <div>
-                        <label className="block text-sm text-slate-400 mb-2">Crédito (%)</label>
-                        <input
-                            type="number"
-                            value={shareCredit}
-                            onChange={(e) => setShareCredit(Number(e.target.value))}
-                            className={inputClass}
-                        />
+                    {/* Share Crédito */}
+                    <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-2 text-center flex flex-col justify-center">
+                        <span className="text-purple-400 text-sm">💎</span>
+                        <p className="text-2xl font-bold text-purple-400">{shares.credit.toFixed(0)}%</p>
+                        <p className="text-[10px] text-slate-400">Crédito</p>
                     </div>
-                    <div>
-                        <label className="block text-sm text-slate-400 mb-2">PIX (%)</label>
-                        <input
-                            type="number"
-                            value={sharePix}
-                            onChange={(e) => setSharePix(Number(e.target.value))}
-                            className={inputClass}
-                        />
+                    {/* Share PIX */}
+                    <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-2 text-center flex flex-col justify-center">
+                        <span className="text-cyan-400 text-sm">⚡</span>
+                        <p className="text-2xl font-bold text-cyan-400">{shares.pix.toFixed(0)}%</p>
+                        <p className="text-[10px] text-slate-400">PIX</p>
                     </div>
                 </div>
-                {shareDebit + shareCredit + sharePix !== 100 && (
-                    <p className="text-amber-400 text-sm mt-2">⚠️ Total: {shareDebit + shareCredit + sharePix}% (deve ser 100%)</p>
-                )}
-            </div>
+            )}
 
-            {/* Comparativo */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Stone */}
-                <div className="bg-slate-900/50 border-2 border-emerald-500/50 rounded-2xl overflow-hidden">
-                    <div className="bg-emerald-500 p-4 flex items-center gap-3">
-                        <Image src="/logo-stone.png" alt="Stone" width={80} height={32} className="brightness-0 invert" />
+            {/* Modo Avançado - Bandeiras + Volume Inline */}
+            {mode === 'advanced' && (
+                <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-2 space-y-2">
+                    {/* Bandeiras Toggle */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] text-slate-500">Bandeiras:</span>
+                        {brandConfigs.map(config => (
+                            <button key={config.name} onClick={() => toggleBrand(config.name)}
+                                className={`px-2 py-0.5 text-[10px] rounded border ${config.enabled ? 'bg-[#00A868]/20 border-[#00A868]/50 text-[#00A868]' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
+                                {config.name}
+                            </button>
+                        ))}
+                        <span className="ml-auto text-[10px] text-[#00A868] font-semibold">Total: {formatCurrency(advancedTotalVolume)}</span>
                     </div>
-                    <div className="p-6 space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-xs text-slate-400 mb-1">Débito</label>
-                                <div className="relative">
-                                    <input type="number" step="0.01" value={stoneRates.debit} onChange={(e) => setStoneRates({ ...stoneRates, debit: Number(e.target.value) })} className={inputClass} />
-                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">%</span>
+                    {/* Volume por Bandeira - Grid compacto */}
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1">
+                        {brandConfigs.filter(b => b.enabled && !b.unified).map(config => {
+                            const brand = CARD_BRANDS.find(cb => cb.name === config.name);
+                            const vol = brandVolumes[config.name] || { debit: 0, credit: 0 };
+                            return (
+                                <div key={config.name} className="bg-slate-800/50 border border-slate-700 rounded p-1">
+                                    <p className="text-[10px] font-medium truncate" style={{ color: brand?.color || '#fff' }}>{config.name}</p>
+                                    <div className="flex gap-1 mt-0.5">
+                                        <input type="number" value={vol.debit} placeholder="D"
+                                            onChange={(e) => setBrandVolumes({ ...brandVolumes, [config.name]: { ...vol, debit: Number(e.target.value) } })}
+                                            className="w-full bg-slate-900 border border-slate-600 rounded px-1 py-0.5 text-white text-[10px] text-center" />
+                                        <input type="number" value={vol.credit} placeholder="C"
+                                            onChange={(e) => setBrandVolumes({ ...brandVolumes, [config.name]: { ...vol, credit: Number(e.target.value) } })}
+                                            className="w-full bg-slate-900 border border-slate-600 rounded px-1 py-0.5 text-white text-[10px] text-center" />
+                                    </div>
                                 </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs text-slate-400 mb-1">Crédito 1x</label>
-                                <div className="relative">
-                                    <input type="number" step="0.01" value={stoneRates.credit1x} onChange={(e) => setStoneRates({ ...stoneRates, credit1x: Number(e.target.value) })} className={inputClass} />
-                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">%</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {mode === 'avancado' && (
-                            <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                    <label className="block text-xs text-slate-400 mb-1">2-6x</label>
-                                    <input type="number" step="0.01" value={stoneRates.credit2to6} onChange={(e) => setStoneRates({ ...stoneRates, credit2to6: Number(e.target.value) })} className={inputClass} />
-                                </div>
-                                <div>
-                                    <label className="block text-xs text-slate-400 mb-1">7-12x</label>
-                                    <input type="number" step="0.01" value={stoneRates.credit7to12} onChange={(e) => setStoneRates({ ...stoneRates, credit7to12: Number(e.target.value) })} className={inputClass} />
-                                </div>
-                                <div>
-                                    <label className="block text-xs text-slate-400 mb-1">13-18x</label>
-                                    <input type="number" step="0.01" value={stoneRates.credit13to18} onChange={(e) => setStoneRates({ ...stoneRates, credit13to18: Number(e.target.value) })} className={inputClass} />
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-xs text-slate-400 mb-1">PIX</label>
-                                <div className="relative">
-                                    <input type="number" step="0.01" value={stoneRates.pix} onChange={(e) => setStoneRates({ ...stoneRates, pix: Number(e.target.value) })} className={inputClass} />
-                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">%</span>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs text-slate-400 mb-1">RAV (Antecipação)</label>
-                                <div className="relative">
-                                    <input type="number" step="0.01" value={stoneRates.rav} onChange={(e) => setStoneRates({ ...stoneRates, rav: Number(e.target.value) })} className={inputClass} />
-                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">%</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Custo Stone */}
-                        <div className="pt-4 border-t border-slate-700">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-slate-400">Custo Débito</span>
-                                <span className="text-white font-medium">{formatCurrency(stoneCosts.debit)}</span>
-                            </div>
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-slate-400">Custo Crédito</span>
-                                <span className="text-white font-medium">{formatCurrency(stoneCosts.credit)}</span>
-                            </div>
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-slate-400">Custo PIX</span>
-                                <span className="text-white font-medium">{formatCurrency(stoneCosts.pix)}</span>
-                            </div>
-                            <div className="flex justify-between items-center pt-2 border-t border-slate-700">
-                                <span className="text-white font-semibold">TOTAL</span>
-                                <span className="text-2xl font-bold text-emerald-400">{formatCurrency(stoneCosts.total)}</span>
-                            </div>
+                            );
+                        })}
+                        {/* PIX */}
+                        <div className="bg-slate-800/50 border border-cyan-500/30 rounded p-1">
+                            <p className="text-[10px] font-medium text-cyan-400">⚡ PIX</p>
+                            <input type="number" value={pixVolume} onChange={(e) => setPixVolume(Number(e.target.value))}
+                                className="w-full bg-slate-900 border border-cyan-500/30 rounded px-1 py-0.5 text-white text-[10px] text-center mt-0.5" />
                         </div>
                     </div>
                 </div>
+            )}
 
-                {/* Concorrente */}
-                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
-                    <div className="p-4 flex items-center gap-3" style={{ backgroundColor: competitor.color }}>
-                        <select
-                            value={competitorId}
-                            onChange={(e) => setCompetitorId(e.target.value)}
-                            className="bg-white/20 border-0 text-white font-bold text-lg rounded-lg px-3 py-1 focus:ring-2 focus:ring-white/50"
-                        >
-                            {ACQUIRERS.filter(a => a.id !== 'stone').map(a => (
-                                <option key={a.id} value={a.id} className="text-slate-900">{a.name}</option>
+            {/* Tabela de Taxas - Containers Separados */}
+            {mode === 'simple' && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+                    {/* Container Stone */}
+                    <div className="bg-slate-900/50 border border-[#00A868]/30 rounded-lg overflow-hidden">
+                        <div className="bg-[#00A868] px-3 py-1.5 flex items-center justify-between">
+                            <span className="text-white font-bold text-sm">Stone</span>
+                            <span className="text-white/80 text-[10px]">Taxas MDR</span>
+                        </div>
+                        <div className="p-2">
+                            {[
+                                { label: 'Débito', key: 'debit' },
+                                { label: 'Crédito à vista', key: 'credit1x' },
+                                { label: 'Parcelado 2-6x', key: 'credit2to6' },
+                                { label: 'Parcelado 7-12x', key: 'credit7to12' },
+                                { label: 'Parcelado 13-18x', key: 'credit13to18' },
+                                { label: 'Antecipação (RAV)', key: 'rav' },
+                                { label: 'PIX', key: 'pix' },
+                            ].map((row) => (
+                                <div key={row.key} className="flex items-center justify-between py-0.5 border-b border-slate-800/50">
+                                    <span className="text-[10px] text-slate-400">{row.label}</span>
+                                    <input type="number" step="0.01" value={stoneSimple[row.key as keyof BrandRates]}
+                                        onChange={(e) => setStoneSimple({ ...stoneSimple, [row.key]: Number(e.target.value) })}
+                                        className="w-16 bg-slate-800 border border-[#00A868]/30 rounded px-1 py-0.5 text-[#00A868] text-xs text-center font-medium" />
+                                </div>
                             ))}
-                        </select>
-                        {competitorId === 'outros' && (
-                            <input
-                                type="text"
-                                placeholder="Nome do concorrente"
-                                value={customName}
-                                onChange={(e) => setCustomName(e.target.value)}
-                                className="bg-white/20 border-0 text-white rounded-lg px-3 py-1 placeholder-white/50"
-                            />
-                        )}
+                        </div>
                     </div>
-                    <div className="p-6 space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-xs text-slate-400 mb-1">Débito</label>
-                                <div className="relative">
-                                    <input type="number" step="0.01" value={competitorRates.debit} onChange={(e) => setCompetitorRates({ ...competitorRates, debit: Number(e.target.value) })} className={inputClass} />
-                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">%</span>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs text-slate-400 mb-1">Crédito 1x</label>
-                                <div className="relative">
-                                    <input type="number" step="0.01" value={competitorRates.credit1x} onChange={(e) => setCompetitorRates({ ...competitorRates, credit1x: Number(e.target.value) })} className={inputClass} />
-                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">%</span>
-                                </div>
-                            </div>
+
+                    {/* Container Concorrente */}
+                    <div className="bg-slate-900/50 border border-red-500/30 rounded-lg overflow-hidden">
+                        <div className="px-3 py-1.5 flex items-center justify-between" style={{ backgroundColor: competitor.color }}>
+                            <select value={competitorId} onChange={(e) => setCompetitorId(e.target.value)}
+                                className="bg-transparent border-0 text-white font-bold text-sm focus:ring-0 cursor-pointer">
+                                {ACQUIRERS.map(a => <option key={a.id} value={a.id} className="text-slate-900">{a.name}</option>)}
+                            </select>
+                            <span className="text-white/80 text-[10px]">Taxas MDR</span>
                         </div>
-
-                        {mode === 'avancado' && (
-                            <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                    <label className="block text-xs text-slate-400 mb-1">2-6x</label>
-                                    <input type="number" step="0.01" value={competitorRates.credit2to6} onChange={(e) => setCompetitorRates({ ...competitorRates, credit2to6: Number(e.target.value) })} className={inputClass} />
+                        <div className="p-2">
+                            {[
+                                { label: 'Débito', key: 'debit' },
+                                { label: 'Crédito à vista', key: 'credit1x' },
+                                { label: 'Parcelado 2-6x', key: 'credit2to6' },
+                                { label: 'Parcelado 7-12x', key: 'credit7to12' },
+                                { label: 'Parcelado 13-18x', key: 'credit13to18' },
+                                { label: 'Antecipação (RAV)', key: 'rav' },
+                                { label: 'PIX', key: 'pix' },
+                            ].map((row) => (
+                                <div key={row.key} className="flex items-center justify-between py-0.5 border-b border-slate-800/50">
+                                    <span className="text-[10px] text-slate-400">{row.label}</span>
+                                    <input type="number" step="0.01" value={competitorSimple[row.key as keyof BrandRates]}
+                                        onChange={(e) => setCompetitorSimple({ ...competitorSimple, [row.key]: Number(e.target.value) })}
+                                        className="w-16 bg-slate-800 border border-red-500/30 rounded px-1 py-0.5 text-red-400 text-xs text-center font-medium" />
                                 </div>
-                                <div>
-                                    <label className="block text-xs text-slate-400 mb-1">7-12x</label>
-                                    <input type="number" step="0.01" value={competitorRates.credit7to12} onChange={(e) => setCompetitorRates({ ...competitorRates, credit7to12: Number(e.target.value) })} className={inputClass} />
-                                </div>
-                                <div>
-                                    <label className="block text-xs text-slate-400 mb-1">13-18x</label>
-                                    <input type="number" step="0.01" value={competitorRates.credit13to18} onChange={(e) => setCompetitorRates({ ...competitorRates, credit13to18: Number(e.target.value) })} className={inputClass} />
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-xs text-slate-400 mb-1">PIX</label>
-                                <div className="relative">
-                                    <input type="number" step="0.01" value={competitorRates.pix} onChange={(e) => setCompetitorRates({ ...competitorRates, pix: Number(e.target.value) })} className={inputClass} />
-                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">%</span>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs text-slate-400 mb-1">RAV (Antecipação)</label>
-                                <div className="relative">
-                                    <input type="number" step="0.01" value={competitorRates.rav} onChange={(e) => setCompetitorRates({ ...competitorRates, rav: Number(e.target.value) })} className={inputClass} />
-                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">%</span>
-                                </div>
-                            </div>
+                            ))}
                         </div>
+                    </div>
 
-                        {/* Custo Concorrente */}
-                        <div className="pt-4 border-t border-slate-700">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-slate-400">Custo Débito</span>
-                                <span className="text-white font-medium">{formatCurrency(competitorCosts.debit)}</span>
-                            </div>
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-slate-400">Custo Crédito</span>
-                                <span className="text-white font-medium">{formatCurrency(competitorCosts.credit)}</span>
-                            </div>
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-slate-400">Custo PIX</span>
-                                <span className="text-white font-medium">{formatCurrency(competitorCosts.pix)}</span>
-                            </div>
-                            <div className="flex justify-between items-center pt-2 border-t border-slate-700">
-                                <span className="text-white font-semibold">TOTAL</span>
-                                <span className="text-2xl font-bold text-red-400">{formatCurrency(competitorCosts.total)}</span>
-                            </div>
+                    {/* Container Diferença */}
+                    <div className="bg-slate-900/50 border border-slate-700 rounded-lg overflow-hidden">
+                        <div className="bg-slate-700 px-3 py-1.5">
+                            <span className="text-white font-bold text-sm">Diferença</span>
+                        </div>
+                        <div className="p-2">
+                            {[
+                                { label: 'Débito', key: 'debit' },
+                                { label: 'Crédito à vista', key: 'credit1x' },
+                                { label: 'Parcelado 2-6x', key: 'credit2to6' },
+                                { label: 'Parcelado 7-12x', key: 'credit7to12' },
+                                { label: 'Parcelado 13-18x', key: 'credit13to18' },
+                                { label: 'Antecipação (RAV)', key: 'rav' },
+                                { label: 'PIX', key: 'pix' },
+                            ].map((row) => {
+                                const diff = competitorSimple[row.key as keyof BrandRates] - stoneSimple[row.key as keyof BrandRates];
+                                return (
+                                    <div key={row.key} className="flex items-center justify-between py-0.5 border-b border-slate-800/50">
+                                        <span className="text-[10px] text-slate-400">{row.label}</span>
+                                        <span className={`text-xs font-bold ${diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                                            {diff > 0 ? '+' : ''}{diff.toFixed(2)}%
+                                        </span>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
 
-            {/* Resultado - Economia */}
-            <div className={`rounded-2xl p-8 text-center ${economy > 0 ? 'bg-emerald-500/20 border-2 border-emerald-500/50' : 'bg-red-500/20 border-2 border-red-500/50'}`}>
-                <p className="text-slate-300 mb-2">
-                    {economy > 0 ? '💰 Economia Mensal com Stone' : '⚠️ Custo Adicional com Stone'}
-                </p>
-                <p className={`text-5xl font-bold mb-2 ${economy > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {formatCurrency(Math.abs(economy))}
-                </p>
-                <p className="text-slate-400">
-                    {economyPercent.toFixed(1)}% {economy > 0 ? 'mais barato' : 'mais caro'} | Economia Anual: <span className="text-white font-semibold">{formatCurrency(Math.abs(economy) * 12)}</span>
-                </p>
+            {mode === 'advanced' && (
+                // Modo Avançado - Por Bandeira
+                enabledBrands.map(config => (
+                    <div key={config.name} className="border-b border-slate-700">
+                        <div className="px-3 py-2 bg-slate-800/30 text-xs font-semibold text-white flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-[#00A868]"></span>
+                            {config.name}
+                        </div>
+                        {['debit', 'credit1x', 'credit2to6', 'credit7to12', 'pix', 'rav'].map(key => {
+                            const labels: Record<string, string> = { debit: 'Débito', credit1x: '1x', credit2to6: '2-6x', credit7to12: '7-12x', pix: 'PIX', rav: 'RAV' };
+                            const stoneVal = stoneBrands[config.name]?.[key as keyof BrandRates] || 0;
+                            const compVal = competitorBrands[config.name]?.[key as keyof BrandRates] || 0;
+                            const diff = compVal - stoneVal;
+                            return (
+                                <div key={key} className="grid grid-cols-4 border-b border-slate-800/30 items-center">
+                                    <div className="px-3 py-1 text-xs text-slate-400 pl-6">{labels[key]}</div>
+                                    <div className="px-2 py-0.5">
+                                        <input type="number" step="0.01" value={stoneVal}
+                                            onChange={(e) => setStoneBrands({ ...stoneBrands, [config.name]: { ...stoneBrands[config.name], [key]: Number(e.target.value) } })}
+                                            className="w-full max-w-[55px] mx-auto block bg-slate-800 border border-[#00A868]/30 rounded px-1 py-0.5 text-[#00A868] text-xs text-center" />
+                                    </div>
+                                    <div className="px-2 py-0.5">
+                                        <input type="number" step="0.01" value={compVal}
+                                            onChange={(e) => setCompetitorBrands({ ...competitorBrands, [config.name]: { ...competitorBrands[config.name], [key]: Number(e.target.value) } })}
+                                            className="w-full max-w-[55px] mx-auto block bg-slate-800 border border-red-500/30 rounded px-1 py-0.5 text-red-400 text-xs text-center" />
+                                    </div>
+                                    <div className={`px-2 py-1 text-xs text-center font-bold ${diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                                        {diff > 0 ? '+' : ''}{diff.toFixed(2)}%
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ))
+            )}
+
+            {/* Custos + Economia - Inline Compactado */}
+            <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    {/* Stone */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-[#00A868] font-bold">Stone:</span>
+                        <span className="text-[10px] text-slate-400">D: {formatCurrency(stoneCosts.debit)}</span>
+                        <span className="text-[10px] text-slate-400">C: {formatCurrency(stoneCosts.credit)}</span>
+                        <span className="text-[10px] text-slate-400">P: {formatCurrency(stoneCosts.pix)}</span>
+                        <span className="text-xs text-[#00A868] font-bold">{formatCurrency(stoneCosts.total)}</span>
+                    </div>
+                    {/* Competitor */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold" style={{ color: competitor.color }}>{competitorName}:</span>
+                        <span className="text-[10px] text-slate-400">D: {formatCurrency(competitorCosts.debit)}</span>
+                        <span className="text-[10px] text-slate-400">C: {formatCurrency(competitorCosts.credit)}</span>
+                        <span className="text-[10px] text-slate-400">P: {formatCurrency(competitorCosts.pix)}</span>
+                        <span className="text-xs text-red-400 font-bold">{formatCurrency(competitorCosts.total)}</span>
+                    </div>
+                    {/* Economia */}
+                    <div className={`px-3 py-1 rounded-lg text-center ${economy > 0 ? 'bg-[#00A868]/20' : economy < 0 ? 'bg-amber-500/20' : 'bg-slate-700/50'}`}>
+                        {economy > 0 ? (
+                            <>
+                                <span className="text-[10px] text-slate-400">💰 </span>
+                                <span className="text-sm font-bold text-[#00A868]">{formatCurrency(economy)}</span>
+                                <span className="text-[10px] text-slate-400"> /mês</span>
+                            </>
+                        ) : economy < 0 ? (
+                            <>
+                                <span className="text-[10px] text-amber-400">📊 +</span>
+                                <span className="text-sm font-bold text-amber-400">{formatCurrency(Math.abs(economy))}</span>
+                            </>
+                        ) : (
+                            <span className="text-xs text-slate-400">⚖️ Igual</span>
+                        )}
+                    </div>
+                </div>
             </div>
         </div>
     );
