@@ -70,6 +70,30 @@ export default function ComparativoPage() {
     });
     const [pixVolume, setPixVolume] = useState(20000);
 
+    // Modelos de Máquinas Stone
+    const STONE_MODELS = [
+        { id: 'pos-smart', name: 'POS-Smart', aluguel: 0 },
+        { id: 'gps-smart', name: 'GPS-Smart', aluguel: 0 },
+        { id: 'stone-plus', name: 'Stone+', aluguel: 0 },
+        { id: 'ton-t1', name: 'Ton T1', aluguel: 0 },
+        { id: 'ton-t3', name: 'Ton T3', aluguel: 0 },
+    ];
+
+    // Aluguel de Máquinas
+    const [stoneModelo, setStoneModelo] = useState('pos-smart');
+    const [stoneQtdMaquinas, setStoneQtdMaquinas] = useState(1);
+    const [stoneAluguel, setStoneAluguel] = useState(0); // Stone geralmente não cobra
+    const [competitorQtdMaquinas, setCompetitorQtdMaquinas] = useState(1);
+    const [competitorAluguel, setCompetitorAluguel] = useState(49.90); // Aluguel típico
+
+    // Isenção por Volume
+    const [isencaoVolume, setIsencaoVolume] = useState(false);
+    const [metaTransacional, setMetaTransacional] = useState(50000); // Meta de volume acordada
+
+    // Dados do Cliente (para proposta)
+    const [clienteCNPJ, setClienteCNPJ] = useState('');
+    const [clienteNome, setClienteNome] = useState('');
+
     // Modo Simples - taxas únicas
     const [stoneSimple, setStoneSimple] = useState<BrandRates>(DEFAULT_STONE_RATES);
     const [competitorSimple, setCompetitorSimple] = useState<BrandRates>(DEFAULT_RATES);
@@ -160,8 +184,18 @@ export default function ComparativoPage() {
     const competitorCosts = mode === 'simple'
         ? calculateCosts(competitorSimple)
         : calculateAdvancedCosts(competitorBrands, competitorSimple.pix);
-    const economy = competitorCosts.total - stoneCosts.total;
-    const economyPercent = competitorCosts.total > 0 ? (economy / competitorCosts.total) * 100 : 0;
+
+    // Custos de aluguel mensais (considera isenção por volume)
+    const volumeAtingido = mode === 'simple' ? volumeTotal >= metaTransacional : advancedTotalVolume >= metaTransacional;
+    const stoneRentalCost = isencaoVolume && volumeAtingido ? 0 : (stoneQtdMaquinas * stoneAluguel);
+    const competitorRentalCost = competitorQtdMaquinas * competitorAluguel;
+    const rentalEconomy = competitorRentalCost - stoneRentalCost;
+
+    // Economia total (taxas + aluguel)
+    const totalStoneCost = stoneCosts.total + stoneRentalCost;
+    const totalCompetitorCost = competitorCosts.total + competitorRentalCost;
+    const economy = totalCompetitorCost - totalStoneCost;
+    const economyPercent = totalCompetitorCost > 0 ? (economy / totalCompetitorCost) * 100 : 0;
 
     const formatCurrency = (value: number) =>
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -425,6 +459,49 @@ export default function ComparativoPage() {
                 </div>
             </div>
 
+            {/* Dados do Cliente / Proposta */}
+            <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="text-white font-bold text-sm">📋 Dados da Proposta</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div>
+                        <label className="text-[10px] text-slate-500 block mb-1">CNPJ / CPF</label>
+                        <input type="text" value={clienteCNPJ} onChange={(e) => setClienteCNPJ(e.target.value)}
+                            placeholder="00.000.000/0000-00"
+                            className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white text-xs" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-slate-500 block mb-1">Empresa / Nome</label>
+                        <input type="text" value={clienteNome} onChange={(e) => setClienteNome(e.target.value)}
+                            placeholder="Nome do cliente"
+                            className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white text-xs" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-slate-500 block mb-1">Meta Transacional (R$)</label>
+                        <input type="number" value={metaTransacional} onChange={(e) => setMetaTransacional(Number(e.target.value))}
+                            className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white text-xs" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-2 cursor-pointer bg-slate-800 border border-slate-700 rounded px-3 py-2 w-full">
+                            <input type="checkbox" checked={isencaoVolume} onChange={(e) => setIsencaoVolume(e.target.checked)}
+                                className="w-4 h-4 accent-[#00A868]" />
+                            <div>
+                                <span className="text-xs text-white block">Isenção por Volume</span>
+                                <span className="text-[8px] text-slate-400">Aluguel isento ao atingir meta</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                {isencaoVolume && (
+                    <div className="mt-2 text-[10px] text-slate-400 flex items-center gap-2">
+                        <span className={volumeAtingido ? 'text-[#00A868]' : 'text-amber-400'}>
+                            {volumeAtingido ? '✅ Meta atingida! Aluguel isento.' : `⚠️ Volume atual abaixo da meta de ${formatCurrency(metaTransacional)}`}
+                        </span>
+                    </div>
+                )}
+            </div>
+
             {/* Volume + Share - Cards Grandes */}
             {mode === 'simple' && (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
@@ -639,41 +716,91 @@ export default function ComparativoPage() {
                 ))
             )}
 
-            {/* Custos + Economia - Inline Compactado */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    {/* Stone */}
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-[#00A868] font-bold">Stone:</span>
-                        <span className="text-[10px] text-slate-400">D: {formatCurrency(stoneCosts.debit)}</span>
-                        <span className="text-[10px] text-slate-400">C: {formatCurrency(stoneCosts.credit)}</span>
-                        <span className="text-[10px] text-slate-400">P: {formatCurrency(stoneCosts.pix)}</span>
-                        <span className="text-xs text-[#00A868] font-bold">{formatCurrency(stoneCosts.total)}</span>
+            {/* Aluguel de Máquinas */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                {/* Stone Máquinas */}
+                <div className="bg-slate-900/50 border border-[#00A868]/30 rounded-lg p-2">
+                    <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[#00A868] font-bold text-xs">🖥️ Máquinas Stone</span>
                     </div>
-                    {/* Competitor */}
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold" style={{ color: competitor.color }}>{competitorName}:</span>
-                        <span className="text-[10px] text-slate-400">D: {formatCurrency(competitorCosts.debit)}</span>
-                        <span className="text-[10px] text-slate-400">C: {formatCurrency(competitorCosts.credit)}</span>
-                        <span className="text-[10px] text-slate-400">P: {formatCurrency(competitorCosts.pix)}</span>
-                        <span className="text-xs text-red-400 font-bold">{formatCurrency(competitorCosts.total)}</span>
+                    <div className="grid grid-cols-3 gap-2">
+                        <div>
+                            <label className="text-[8px] text-slate-500">Modelo</label>
+                            <select value={stoneModelo} onChange={(e) => setStoneModelo(e.target.value)}
+                                className="w-full bg-slate-800 border border-slate-700 rounded px-1 py-1 text-white text-[10px]">
+                                {STONE_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[8px] text-slate-500">Qtd</label>
+                            <input type="number" min="1" value={stoneQtdMaquinas} onChange={(e) => setStoneQtdMaquinas(Number(e.target.value))}
+                                className="w-full bg-slate-800 border border-slate-700 rounded px-1 py-1 text-white text-[10px] text-center" />
+                        </div>
+                        <div>
+                            <label className="text-[8px] text-slate-500">Aluguel/mês</label>
+                            <input type="number" step="0.01" value={stoneAluguel} onChange={(e) => setStoneAluguel(Number(e.target.value))}
+                                className="w-full bg-slate-800 border border-[#00A868]/30 rounded px-1 py-1 text-[#00A868] text-[10px] text-center" />
+                        </div>
                     </div>
+                    <div className="mt-1 text-right">
+                        <span className="text-[10px] text-slate-400">Total: </span>
+                        <span className="text-xs text-[#00A868] font-bold">{formatCurrency(stoneRentalCost)}</span>
+                    </div>
+                </div>
+
+                {/* Concorrente Máquinas */}
+                <div className="bg-slate-900/50 border border-red-500/30 rounded-lg p-2">
+                    <div className="flex items-center gap-2 mb-2">
+                        <span className="font-bold text-xs" style={{ color: competitor.color }}>🖥️ Máquinas {competitorName}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <label className="text-[8px] text-slate-500">Quantidade</label>
+                            <input type="number" min="1" value={competitorQtdMaquinas} onChange={(e) => setCompetitorQtdMaquinas(Number(e.target.value))}
+                                className="w-full bg-slate-800 border border-slate-700 rounded px-1 py-1 text-white text-[10px] text-center" />
+                        </div>
+                        <div>
+                            <label className="text-[8px] text-slate-500">Aluguel/mês (cada)</label>
+                            <input type="number" step="0.01" value={competitorAluguel} onChange={(e) => setCompetitorAluguel(Number(e.target.value))}
+                                className="w-full bg-slate-800 border border-red-500/30 rounded px-1 py-1 text-red-400 text-[10px] text-center" />
+                        </div>
+                    </div>
+                    <div className="mt-1 text-right">
+                        <span className="text-[10px] text-slate-400">Total: </span>
+                        <span className="text-xs text-red-400 font-bold">{formatCurrency(competitorRentalCost)}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Resumo Final - Custos + Economia */}
+            <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {/* Stone Total */}
+                    <div className="bg-[#00A868]/10 border border-[#00A868]/30 rounded-lg p-2 text-center">
+                        <p className="text-[10px] text-slate-400 mb-1">💎 Stone Total</p>
+                        <p className="text-[10px] text-slate-400">Taxas: {formatCurrency(stoneCosts.total)}</p>
+                        <p className="text-[10px] text-slate-400">Aluguel: {formatCurrency(stoneRentalCost)}</p>
+                        <p className="text-lg font-bold text-[#00A868]">{formatCurrency(totalStoneCost)}</p>
+                    </div>
+
+                    {/* Concorrente Total */}
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2 text-center">
+                        <p className="text-[10px] text-slate-400 mb-1">{competitor.icon} {competitorName} Total</p>
+                        <p className="text-[10px] text-slate-400">Taxas: {formatCurrency(competitorCosts.total)}</p>
+                        <p className="text-[10px] text-slate-400">Aluguel: {formatCurrency(competitorRentalCost)}</p>
+                        <p className="text-lg font-bold text-red-400">{formatCurrency(totalCompetitorCost)}</p>
+                    </div>
+
                     {/* Economia */}
-                    <div className={`px-3 py-1 rounded-lg text-center ${economy > 0 ? 'bg-[#00A868]/20' : economy < 0 ? 'bg-amber-500/20' : 'bg-slate-700/50'}`}>
-                        {economy > 0 ? (
-                            <>
-                                <span className="text-[10px] text-slate-400">💰 </span>
-                                <span className="text-sm font-bold text-[#00A868]">{formatCurrency(economy)}</span>
-                                <span className="text-[10px] text-slate-400"> /mês</span>
-                            </>
-                        ) : economy < 0 ? (
-                            <>
-                                <span className="text-[10px] text-amber-400">📊 +</span>
-                                <span className="text-sm font-bold text-amber-400">{formatCurrency(Math.abs(economy))}</span>
-                            </>
-                        ) : (
-                            <span className="text-xs text-slate-400">⚖️ Igual</span>
+                    <div className={`rounded-lg p-2 text-center ${economy > 0 ? 'bg-[#00A868]/20 border border-[#00A868]/50' : economy < 0 ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-slate-700/50 border border-slate-600'}`}>
+                        <p className="text-[10px] text-slate-400 mb-1">💰 Economia Mensal</p>
+                        {rentalEconomy !== 0 && (
+                            <p className="text-[10px] text-slate-400">Aluguel: {rentalEconomy > 0 ? '+' : ''}{formatCurrency(rentalEconomy)}</p>
                         )}
+                        <p className="text-2xl font-bold" style={{ color: economy > 0 ? '#00A868' : economy < 0 ? '#f59e0b' : '#94a3b8' }}>
+                            {economy > 0 ? '+' : ''}{formatCurrency(economy)}
+                        </p>
+                        <p className="text-[10px] text-slate-400">{economyPercent.toFixed(1)}% {economy > 0 ? 'mais barato' : economy < 0 ? 'mais caro' : 'igual'}</p>
                     </div>
                 </div>
             </div>
