@@ -86,14 +86,6 @@ export default function ComparativoPage() {
     const [competitorQtdMaquinas, setCompetitorQtdMaquinas] = useState(1);
     const [competitorAluguel, setCompetitorAluguel] = useState(49.90); // Aluguel típico
 
-    // Isenção por Volume
-    const [isencaoVolume, setIsencaoVolume] = useState(false);
-    const [metaTransacional, setMetaTransacional] = useState(50000); // Meta de volume acordada
-
-    // Dados do Cliente (para proposta)
-    const [clienteCNPJ, setClienteCNPJ] = useState('');
-    const [clienteNome, setClienteNome] = useState('');
-
     // Modo Simples - taxas únicas
     const [stoneSimple, setStoneSimple] = useState<BrandRates>(DEFAULT_STONE_RATES);
     const [competitorSimple, setCompetitorSimple] = useState<BrandRates>(DEFAULT_RATES);
@@ -185,9 +177,8 @@ export default function ComparativoPage() {
         ? calculateCosts(competitorSimple)
         : calculateAdvancedCosts(competitorBrands, competitorSimple.pix);
 
-    // Custos de aluguel mensais (considera isenção por volume)
-    const volumeAtingido = mode === 'simple' ? volumeTotal >= metaTransacional : advancedTotalVolume >= metaTransacional;
-    const stoneRentalCost = isencaoVolume ? 0 : (stoneQtdMaquinas * stoneAluguel);
+    // Custos de aluguel mensais
+    const stoneRentalCost = stoneQtdMaquinas * stoneAluguel;
     const competitorRentalCost = competitorQtdMaquinas * competitorAluguel;
     const rentalEconomy = competitorRentalCost - stoneRentalCost;
 
@@ -459,27 +450,6 @@ export default function ComparativoPage() {
                 </div>
             </div>
 
-            {/* Dados do Cliente / Proposta */}
-            <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                    <span className="text-white font-bold text-sm">📋 Dados da Proposta</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label className="text-[10px] text-slate-500 block mb-1">CNPJ / CPF</label>
-                        <input type="text" value={clienteCNPJ} onChange={(e) => setClienteCNPJ(e.target.value)}
-                            placeholder="00.000.000/0000-00"
-                            className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white text-xs" />
-                    </div>
-                    <div>
-                        <label className="text-[10px] text-slate-500 block mb-1">Empresa / Nome</label>
-                        <input type="text" value={clienteNome} onChange={(e) => setClienteNome(e.target.value)}
-                            placeholder="Nome do cliente"
-                            className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white text-xs" />
-                    </div>
-                </div>
-            </div>
-
             {/* Volume + Share - Cards Grandes */}
             {mode === 'simple' && (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
@@ -698,13 +668,8 @@ export default function ComparativoPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                 {/* Stone Máquinas */}
                 <div className="bg-slate-900/50 border border-[#00A868]/30 rounded-lg p-2">
-                    <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2">
                         <span className="text-[#00A868] font-bold text-xs">🖥️ Máquinas Stone</span>
-                        <label className="flex items-center gap-1 cursor-pointer">
-                            <input type="checkbox" checked={isencaoVolume} onChange={(e) => setIsencaoVolume(e.target.checked)}
-                                className="w-3 h-3 accent-[#00A868]" />
-                            <span className="text-[8px] text-slate-400">Isenção por Volume</span>
-                        </label>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                         <div>
@@ -722,30 +687,12 @@ export default function ComparativoPage() {
                         <div>
                             <label className="text-[8px] text-slate-500">Aluguel/mês</label>
                             <input type="number" step="0.01" value={stoneAluguel} onChange={(e) => setStoneAluguel(Number(e.target.value))}
-                                className={`w-full bg-slate-800 border rounded px-1 py-1 text-[10px] text-center ${isencaoVolume ? 'border-amber-500/30 text-amber-400 line-through' : 'border-[#00A868]/30 text-[#00A868]'}`}
-                                disabled={isencaoVolume} />
+                                className="w-full bg-slate-800 border border-[#00A868]/30 rounded px-1 py-1 text-[#00A868] text-[10px] text-center" />
                         </div>
                     </div>
-
-                    {/* Isenção por Volume - Valor do Acordo */}
-                    {isencaoVolume && (
-                        <div className="mt-2 bg-amber-500/10 border border-amber-500/30 rounded p-2">
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="text-[10px] text-amber-400">📜 Valor do Acordo Transacional:</span>
-                                <input type="number" value={metaTransacional} onChange={(e) => setMetaTransacional(Number(e.target.value))}
-                                    className="w-24 bg-slate-800 border border-amber-500/50 rounded px-1 py-0.5 text-amber-400 text-[10px] text-center" />
-                            </div>
-                            <p className="text-[10px] text-[#00A868] font-medium">
-                                ✅ Valor do aluguel ISENTO cumprindo o acordo de {formatCurrency(metaTransacional)}
-                            </p>
-                        </div>
-                    )}
-
                     <div className="mt-1 text-right">
                         <span className="text-[10px] text-slate-400">Total: </span>
-                        <span className={`text-xs font-bold ${isencaoVolume ? 'text-[#00A868]' : 'text-[#00A868]'}`}>
-                            {isencaoVolume ? 'ISENTO' : formatCurrency(stoneRentalCost)}
-                        </span>
+                        <span className="text-xs font-bold text-[#00A868]">{formatCurrency(stoneRentalCost)}</span>
                     </div>
                 </div>
 

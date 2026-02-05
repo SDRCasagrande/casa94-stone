@@ -12,6 +12,7 @@ const menuItems = [
     { href: '/dashboard', icon: '🏠', label: 'Início' },
     { href: '/dashboard/cet', icon: '📊', label: 'Calculador CET' },
     { href: '/dashboard/comparativo', icon: '⚖️', label: 'Comparação de Taxas' },
+    { href: '/dashboard/proposta', icon: '📋', label: 'Nova Proposta' },
     { href: '/dashboard/simulacoes', icon: '📁', label: 'Minhas Simulações' },
     { href: '/dashboard/equipe', icon: '👥', label: 'Equipe' },
 ];
@@ -60,8 +61,8 @@ export default function DashboardLayout({ children }: Props) {
                                 href={item.href}
                                 onClick={() => setSidebarOpen(false)}
                                 className={`flex items-center gap-3 px-3 sm:px-4 py-3 rounded-xl transition-all duration-200 group ${isActive
-                                        ? 'bg-[#00A868]/20 text-white border border-[#00A868]/30'
-                                        : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                                    ? 'bg-[#00A868]/20 text-white border border-[#00A868]/30'
+                                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                                     }`}
                             >
                                 <span className={`text-lg ${isActive ? 'scale-110' : 'group-hover:scale-110'} transition-transform`}>
