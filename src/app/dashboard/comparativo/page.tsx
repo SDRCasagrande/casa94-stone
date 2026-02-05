@@ -267,171 +267,158 @@ export default function ComparativoPage() {
         ));
     };
 
-    // Export PDF - Paisagem, profissional
+    // Export PDF - Paisagem, profissional com prompt de cliente
     const exportPDF = () => {
+        // Prompt para dados do cliente
+        const clienteNome = prompt('Nome da Empresa/Cliente:')?.trim();
+        if (!clienteNome) return;
+        const clienteCNPJ = prompt('CNPJ/CPF (opcional):')?.trim() || '';
+
         const doc = new jsPDF({ orientation: 'landscape' });
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
 
-        // Header com logo Stone (texto estilizado) + CASA 94
+        // Header verde Stone
         doc.setFillColor(0, 168, 104);
-        doc.rect(0, 0, pageWidth, 25, 'F');
+        doc.rect(0, 0, pageWidth, 40, 'F');
 
-        doc.setFontSize(18);
+        // Logo STONE centralizado
         doc.setTextColor(255, 255, 255);
-        doc.text('stone', 20, 16);
-        doc.setFontSize(8);
-        doc.text('®', 45, 10);
+        doc.setFontSize(32);
+        doc.setFont('helvetica', 'bold');
+        doc.text('STONE', pageWidth / 2, 20, { align: 'center' });
 
-        doc.setFontSize(22);
-        doc.text('CASA 94', pageWidth / 2, 16, { align: 'center' });
+        // Subtítulo
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        doc.text('PROPOSTA COMPARATIVA', pageWidth / 2, 30, { align: 'center' });
 
+        // Data no canto direito
         doc.setFontSize(10);
-        doc.text(`Fidelidade: 13 Meses`, pageWidth - 20, 16, { align: 'right' });
+        doc.text(new Date().toLocaleDateString('pt-BR'), pageWidth - 15, 15, { align: 'right' });
 
-        // Info linha
-        doc.setTextColor(80);
-        doc.setFontSize(9);
-        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 20, 35);
-        doc.text(`TPV / Volume: ${formatCurrency(volumeTotal)}`, 80, 35);
-        doc.text(`Débito: ${shares.debit.toFixed(0)}% | Crédito: ${shares.credit.toFixed(0)}% | PIX: ${shares.pix.toFixed(0)}%`, 160, 35);
-
-        // COLUNA 1: Taxas Stone (esquerda)
+        // Dados do cliente abaixo do header
+        doc.setTextColor(50, 50, 50);
         doc.setFontSize(11);
-        doc.setTextColor(0, 168, 104);
-        doc.text('TAXAS STONE', 20, 48);
-
-        autoTable(doc, {
-            startY: 52,
-            margin: { left: 20 },
-            tableWidth: 80,
-            head: [['Tipo', 'Taxa']],
-            body: [
-                ['Débito', `${stoneSimple.debit.toFixed(2)}%`],
-                ['Crédito à vista', `${stoneSimple.credit1x.toFixed(2)}%`],
-                ['Parcelado 2 a 6x', `${stoneSimple.credit2to6.toFixed(2)}%`],
-                ['Parcelado 7 a 12x', `${stoneSimple.credit7to12.toFixed(2)}%`],
-                ['Parcelado 13 a 18x', `${stoneSimple.credit13to18.toFixed(2)}%`],
-                ['Antecipação (RAV)', `${stoneSimple.rav.toFixed(2)}%`],
-                ['PIX', `${stoneSimple.pix.toFixed(2)}%`],
-            ],
-            headStyles: { fillColor: [0, 168, 104], fontSize: 8 },
-            bodyStyles: { fontSize: 8 },
-            columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 30, halign: 'right' } },
-        });
-
-        // COLUNA 2: CET Stone VISA/MASTER (centro-esquerda)
-        doc.setFontSize(11);
-        doc.setTextColor(0, 168, 104);
-        doc.text('CET VISA/MASTER', 115, 48);
-        doc.setFontSize(7);
-        doc.setTextColor(100);
-        doc.text(`Débito: ${stoneSimple.debit.toFixed(2)}%`, 115, 53);
-
-        // Calcular CET table para VISA/MASTER
-        const ravRate = stoneSimple.rav;
-        const getCET = (mdr: number, parcelas: number) => {
-            const avgMonths = (1 + parcelas) / 2;
-            const ravFactor = 1 - (ravRate / 100 * avgMonths);
-            return (1 - ((100 * (1 - mdr / 100)) * ravFactor) / 100) * 100;
-        };
-
-        const cetData: string[][] = [];
-        for (let i = 1; i <= 9; i++) {
-            const mdr = i === 1 ? stoneSimple.credit1x : i <= 6 ? stoneSimple.credit2to6 : stoneSimple.credit7to12;
-            const cet1 = getCET(mdr, i);
-            const mdr2 = i + 9 <= 12 ? stoneSimple.credit7to12 : stoneSimple.credit13to18;
-            const cet2 = getCET(mdr2, i + 9);
-            cetData.push([`${i}x`, `${cet1.toFixed(2)}%`, `${i + 9}x`, `${cet2.toFixed(2)}%`]);
+        doc.setFont('helvetica', 'bold');
+        doc.text(clienteNome, 15, 50);
+        if (clienteCNPJ) {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.text(`CNPJ/CPF: ${clienteCNPJ}`, 15, 56);
         }
 
+        let yPos = clienteCNPJ ? 68 : 62;
+
+        // Info de volume
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(80, 80, 80);
+        doc.text(`Volume Mensal: ${formatCurrency(volumeTotal)}`, 15, yPos);
+        doc.text(`Débito: ${shares.debit.toFixed(0)}% | Crédito: ${shares.credit.toFixed(0)}% | PIX: ${shares.pix.toFixed(0)}%`, 100, yPos);
+        yPos += 12;
+
+        // Tabela Stone
+        doc.setFontSize(12);
+        doc.setTextColor(0, 168, 104);
+        doc.setFont('helvetica', 'bold');
+        doc.text('TAXAS STONE', 15, yPos);
+
         autoTable(doc, {
-            startY: 56,
-            margin: { left: 115 },
-            tableWidth: 65,
-            head: [['Parc.', 'CET', 'Parc.', 'CET']],
-            body: cetData,
-            headStyles: { fillColor: [0, 168, 104], fontSize: 7 },
-            bodyStyles: { fontSize: 7 },
-            columnStyles: {
-                0: { cellWidth: 12 }, 1: { cellWidth: 20, halign: 'right' },
-                2: { cellWidth: 12 }, 3: { cellWidth: 20, halign: 'right' }
-            },
+            startY: yPos + 4,
+            margin: { left: 15 },
+            tableWidth: 130,
+            head: [['Débito', 'Crédito 1x', '2-6x', '7-12x', '13-18x', 'PIX']],
+            body: [[
+                `${stoneSimple.debit.toFixed(2)}%`,
+                `${stoneSimple.credit1x.toFixed(2)}%`,
+                `${stoneSimple.credit2to6.toFixed(2)}%`,
+                `${stoneSimple.credit7to12.toFixed(2)}%`,
+                `${stoneSimple.credit13to18.toFixed(2)}%`,
+                `${stoneSimple.pix.toFixed(2)}%`,
+            ]],
+            theme: 'grid',
+            headStyles: { fillColor: [0, 168, 104], textColor: [255, 255, 255], fontSize: 8 },
+            bodyStyles: { fontSize: 10, fontStyle: 'bold', halign: 'center' },
         });
 
-        // COLUNA 3: Taxas Concorrente (centro-direita)
-        doc.setFontSize(11);
+        // Tabela Concorrente
+        doc.setFontSize(12);
         doc.setTextColor(220, 53, 69);
-        doc.text(`TAXAS ${competitorName.toUpperCase()}`, 195, 48);
+        doc.text(`TAXAS ${competitorName.toUpperCase()}`, 160, yPos);
 
         autoTable(doc, {
-            startY: 52,
-            margin: { left: 195 },
-            tableWidth: 80,
-            head: [['Tipo', 'Taxa']],
-            body: [
-                ['Débito', `${competitorSimple.debit.toFixed(2)}%`],
-                ['Crédito à vista', `${competitorSimple.credit1x.toFixed(2)}%`],
-                ['Parcelado 2 a 6x', `${competitorSimple.credit2to6.toFixed(2)}%`],
-                ['Parcelado 7 a 12x', `${competitorSimple.credit7to12.toFixed(2)}%`],
-                ['Parcelado 13 a 18x', `${competitorSimple.credit13to18.toFixed(2)}%`],
-                ['Antecipação (RAV)', `${competitorSimple.rav.toFixed(2)}%`],
-                ['PIX', `${competitorSimple.pix.toFixed(2)}%`],
-            ],
-            headStyles: { fillColor: [220, 53, 69], fontSize: 8 },
-            bodyStyles: { fontSize: 8 },
-            columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 30, halign: 'right' } },
+            startY: yPos + 4,
+            margin: { left: 160 },
+            tableWidth: 130,
+            head: [['Débito', 'Crédito 1x', '2-6x', '7-12x', '13-18x', 'PIX']],
+            body: [[
+                `${competitorSimple.debit.toFixed(2)}%`,
+                `${competitorSimple.credit1x.toFixed(2)}%`,
+                `${competitorSimple.credit2to6.toFixed(2)}%`,
+                `${competitorSimple.credit7to12.toFixed(2)}%`,
+                `${competitorSimple.credit13to18.toFixed(2)}%`,
+                `${competitorSimple.pix.toFixed(2)}%`,
+            ]],
+            theme: 'grid',
+            headStyles: { fillColor: [220, 53, 69], textColor: [255, 255, 255], fontSize: 8 },
+            bodyStyles: { fontSize: 10, fontStyle: 'bold', halign: 'center' },
         });
 
-        // Economia - Rodapé destacado
-        const footerY = pageHeight - 30;
+        yPos = (doc as any).lastAutoTable.finalY + 15;
+
+        // Economia destaque
         if (economy > 0) {
             doc.setFillColor(0, 168, 104);
-            doc.rect(20, footerY, pageWidth - 40, 20, 'F');
-            doc.setTextColor(255);
+            doc.roundedRect(15, yPos, pageWidth - 30, 30, 5, 5, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('ECONOMIA COM STONE', 25, yPos + 12);
+            doc.setFontSize(20);
+            doc.text(`${formatCurrency(economy)}/mês`, pageWidth / 2, yPos + 15, { align: 'center' });
             doc.setFontSize(12);
-            doc.text('💰 ECONOMIA COM STONE', 30, footerY + 8);
-            doc.setFontSize(16);
-            doc.text(`${formatCurrency(economy)} /mês`, pageWidth / 2, footerY + 10, { align: 'center' });
-            doc.setFontSize(12);
-            doc.text(`${formatCurrency(economy * 12)} /ano`, pageWidth / 2, footerY + 17, { align: 'center' });
-            doc.text(`${economyPercent.toFixed(1)}% mais barato`, pageWidth - 30, footerY + 12, { align: 'right' });
-        } else if (economy < 0) {
-            doc.setFillColor(255, 193, 7);
-            doc.rect(20, footerY, pageWidth - 40, 20, 'F');
-            doc.setTextColor(0);
-            doc.setFontSize(12);
-            doc.text(`${competitorName} oferece taxas mais competitivas: ${formatCurrency(Math.abs(economy))}/mês`, pageWidth / 2, footerY + 12, { align: 'center' });
+            doc.text(`${formatCurrency(economy * 12)}/ano`, pageWidth / 2, yPos + 24, { align: 'center' });
+            doc.text(`${economyPercent.toFixed(1)}% mais barato`, pageWidth - 25, yPos + 18, { align: 'right' });
         }
 
-        // Custos totais
-        const costsY = footerY - 15;
+        // Rodapé
         doc.setFontSize(9);
-        doc.setTextColor(80);
-        doc.text(`Stone: D ${formatCurrency(stoneCosts.debit)} | C ${formatCurrency(stoneCosts.credit)} | P ${formatCurrency(stoneCosts.pix)} = ${formatCurrency(stoneCosts.total)}`, 20, costsY);
-        doc.text(`${competitorName}: D ${formatCurrency(competitorCosts.debit)} | C ${formatCurrency(competitorCosts.credit)} | P ${formatCurrency(competitorCosts.pix)} = ${formatCurrency(competitorCosts.total)}`, pageWidth / 2, costsY);
+        doc.setTextColor(120, 120, 120);
+        doc.text('Proposta Stone - Válida por 30 dias', pageWidth - 15, pageHeight - 10, { align: 'right' });
 
-        doc.save(`Comparativo_Stone_vs_${competitorName}.pdf`);
+        doc.save(`Proposta_${clienteNome.replace(/\s+/g, '_')}_Comparativo.pdf`);
     };
 
-    // Export Excel
+    // Export Excel com prompt de cliente
     const exportExcel = () => {
+        const clienteNome = prompt('Nome da Empresa/Cliente:')?.trim();
+        if (!clienteNome) return;
+        const clienteCNPJ = prompt('CNPJ/CPF (opcional):')?.trim() || '';
+
         const wsData = [
-            ['CASA 94 - Comparativo de Taxas'],
+            ['STONE - PROPOSTA COMPARATIVA'],
             [''],
-            ['Volume Total:', formatCurrency(volumeTotal)],
+            ['Cliente:', clienteNome],
+            clienteCNPJ ? ['CNPJ/CPF:', clienteCNPJ] : [],
+            ['Data:', new Date().toLocaleDateString('pt-BR')],
+            ['Volume Mensal:', formatCurrency(volumeTotal)],
             [''],
             ['Taxa', 'Stone', competitorName, 'Diferença'],
             ['Débito', `${stoneSimple.debit}%`, `${competitorSimple.debit}%`, `${(competitorSimple.debit - stoneSimple.debit).toFixed(2)}%`],
             ['Crédito 1x', `${stoneSimple.credit1x}%`, `${competitorSimple.credit1x}%`, `${(competitorSimple.credit1x - stoneSimple.credit1x).toFixed(2)}%`],
+            ['2-6x', `${stoneSimple.credit2to6}%`, `${competitorSimple.credit2to6}%`, `${(competitorSimple.credit2to6 - stoneSimple.credit2to6).toFixed(2)}%`],
+            ['7-12x', `${stoneSimple.credit7to12}%`, `${competitorSimple.credit7to12}%`, `${(competitorSimple.credit7to12 - stoneSimple.credit7to12).toFixed(2)}%`],
+            ['PIX', `${stoneSimple.pix}%`, `${competitorSimple.pix}%`, `${(competitorSimple.pix - stoneSimple.pix).toFixed(2)}%`],
             [''],
             ['ECONOMIA MENSAL', formatCurrency(economy)],
             ['ECONOMIA ANUAL', formatCurrency(economy * 12)],
-        ];
+        ].filter(row => row.length > 0);
+
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Comparativo');
-        XLSX.writeFile(wb, `Comparativo_Stone_vs_${competitorName}.xlsx`);
+        XLSX.writeFile(wb, `Proposta_${clienteNome.replace(/\s+/g, '_')}_Comparativo.xlsx`);
     };
 
     return (

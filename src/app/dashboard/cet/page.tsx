@@ -95,56 +95,94 @@ export default function CETCalculator() {
 
     const inputClass = "w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent";
 
-    // Exportar PDF
+    // Exportar PDF - Layout Profissional
     const exportPDF = () => {
-        const doc = new jsPDF();
+        // Prompt para dados do cliente
+        const clienteNome = prompt('Nome da Empresa/Cliente:')?.trim();
+        if (!clienteNome) return; // Cancelado
+        const clienteCNPJ = prompt('CNPJ/CPF (opcional):')?.trim() || '';
+
+        const doc = new jsPDF({ orientation: 'landscape' });
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
-        const isSingleBrand = containers.length === 1;
 
-        // Header - Centralizado e compacto
-        doc.setFontSize(20);
-        doc.setTextColor(0, 168, 104); // Stone green
-        doc.text('CASA 94', pageWidth / 2, 15, { align: 'center' });
+        // Header verde Stone
+        doc.setFillColor(0, 168, 104);
+        doc.rect(0, 0, pageWidth, 40, 'F');
 
+        // Logo STONE centralizado
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(32);
+        doc.setFont('helvetica', 'bold');
+        doc.text('STONE', pageWidth / 2, 20, { align: 'center' });
+
+        // Subtítulo
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        doc.text('PROPOSTA DE TAXAS', pageWidth / 2, 30, { align: 'center' });
+
+        // Data no canto direito
+        doc.setFontSize(10);
+        doc.text(new Date().toLocaleDateString('pt-BR'), pageWidth - 15, 15, { align: 'right' });
+
+        // Dados do cliente abaixo do header
+        doc.setTextColor(50, 50, 50);
         doc.setFontSize(11);
-        doc.setTextColor(100);
-        doc.text('Calculadora CET - Custo Efetivo Total', pageWidth / 2, 22, { align: 'center' });
+        doc.setFont('helvetica', 'bold');
+        doc.text(clienteNome, 15, 50);
+        if (clienteCNPJ) {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.text(`CNPJ/CPF: ${clienteCNPJ}`, 15, 56);
+        }
 
-        // Info linha
-        doc.setFontSize(9);
-        doc.setTextColor(80);
-        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}  |  RAV: ${ravRate}%/mês  |  Fórmula: CET = 1 - ((100×(1-MDR))×(1-(RAV×média_meses)))/100`, pageWidth / 2, 30, { align: 'center' });
+        let yPos = clienteCNPJ ? 68 : 62;
 
-        let yPos = 40;
-
-        if (isSingleBrand) {
-            // Layout centralizado para uma bandeira
-            const container = containers[0];
+        // Para cada bandeira
+        containers.forEach((container, idx) => {
             const cetTable = getCETTable(container);
 
-            // Nome da bandeira centralizado
-            doc.setFontSize(16);
+            if (yPos > 150) {
+                doc.addPage('landscape');
+                yPos = 20;
+            }
+
+            // Nome da bandeira
+            doc.setFontSize(14);
             doc.setTextColor(0, 168, 104);
-            doc.text(container.name, pageWidth / 2, yPos, { align: 'center' });
-            yPos += 7;
+            doc.setFont('helvetica', 'bold');
+            doc.text(container.name, 15, yPos);
+            yPos += 6;
 
-            // Taxas em uma linha
-            doc.setFontSize(9);
-            doc.setTextColor(80);
-            doc.text(`Débito: ${container.debit}%  |  1x: ${container.credit1x}%  |  2-6x: ${container.credit2to6}%  |  7-12x: ${container.credit7to12}%  |  13-18x: ${container.credit13to18}%`, pageWidth / 2, yPos, { align: 'center' });
-            yPos += 10;
+            // Tabela de Taxas MDR
+            autoTable(doc, {
+                startY: yPos,
+                margin: { left: 15 },
+                tableWidth: 120,
+                head: [['Débito', 'Crédito 1x', '2-6x', '7-12x', '13-18x']],
+                body: [[
+                    `${container.debit.toFixed(2)}%`,
+                    `${container.credit1x.toFixed(2)}%`,
+                    `${container.credit2to6.toFixed(2)}%`,
+                    `${container.credit7to12.toFixed(2)}%`,
+                    `${container.credit13to18.toFixed(2)}%`,
+                ]],
+                theme: 'grid',
+                headStyles: { fillColor: [240, 240, 240], textColor: [80, 80, 80], fontSize: 8 },
+                bodyStyles: { fontSize: 10, fontStyle: 'bold', halign: 'center' },
+            });
 
-            // Tabela em 3 colunas (6 rows cada) - mais compacta
+            yPos = (doc as any).lastAutoTable.finalY + 8;
+
+            // Tabela CET em 3 colunas
             const col1 = cetTable.slice(0, 6);
             const col2 = cetTable.slice(6, 12);
             const col3 = cetTable.slice(12, 18);
 
-            const colWidth = 55;
-            const startX = (pageWidth - colWidth * 3) / 2;
-
             autoTable(doc, {
                 startY: yPos,
+                margin: { left: 15 },
+                tableWidth: 180,
                 head: [['Parcelas', 'CET', 'Parcelas', 'CET', 'Parcelas', 'CET']],
                 body: col1.map((row, i) => [
                     `${row.parcelas}x`, `${row.cet.toFixed(2)}%`,
@@ -152,87 +190,56 @@ export default function CETCalculator() {
                     col3[i] ? `${col3[i].parcelas}x` : '', col3[i] ? `${col3[i].cet.toFixed(2)}%` : '',
                 ]),
                 theme: 'grid',
-                headStyles: { fillColor: [0, 168, 104], fontSize: 9, halign: 'center' },
-                styles: { fontSize: 9, halign: 'center', cellPadding: 2 },
+                headStyles: { fillColor: [0, 168, 104], textColor: [255, 255, 255], fontSize: 9, halign: 'center' },
+                bodyStyles: { fontSize: 9, halign: 'center' },
                 columnStyles: {
-                    0: { cellWidth: 22 }, 1: { cellWidth: 28 },
-                    2: { cellWidth: 22 }, 3: { cellWidth: 28 },
-                    4: { cellWidth: 22 }, 5: { cellWidth: 28 },
+                    0: { cellWidth: 25 }, 1: { cellWidth: 35, fontStyle: 'bold' },
+                    2: { cellWidth: 25 }, 3: { cellWidth: 35, fontStyle: 'bold' },
+                    4: { cellWidth: 25 }, 5: { cellWidth: 35, fontStyle: 'bold' },
                 },
-                margin: { left: startX },
-                tableWidth: 'wrap',
             });
 
-        } else {
-            // Layout com múltiplas bandeiras
-            containers.forEach((container, index) => {
-                const cetTable = getCETTable(container);
+            yPos = (doc as any).lastAutoTable.finalY + 15;
+        });
 
-                if (yPos > 240) {
-                    doc.addPage();
-                    yPos = 20;
-                }
+        // Info RAV e rodapé
+        doc.setFontSize(9);
+        doc.setTextColor(120, 120, 120);
+        doc.text(`Antecipação (RAV): ${ravRate}%/mês`, 15, pageHeight - 15);
+        doc.text('Proposta Stone - Válida por 30 dias', pageWidth - 15, pageHeight - 15, { align: 'right' });
 
-                // Título da bandeira
-                doc.setFontSize(12);
-                doc.setTextColor(0, 168, 104);
-                doc.text(container.name, 14, yPos);
-                doc.setFontSize(8);
-                doc.setTextColor(100);
-                doc.text(`Débito: ${container.debit}% | 1x: ${container.credit1x}% | 2-6x: ${container.credit2to6}% | 7-12x: ${container.credit7to12}%`, 50, yPos);
-                yPos += 5;
-
-                // Tabela compacta em 2 colunas
-                const col1 = cetTable.slice(0, 9);
-                const col2 = cetTable.slice(9, 18);
-
-                autoTable(doc, {
-                    startY: yPos,
-                    head: [['Parc.', 'CET', 'Parc.', 'CET']],
-                    body: col1.map((row, i) => [
-                        `${row.parcelas}x`, `${row.cet.toFixed(2)}%`,
-                        col2[i] ? `${col2[i].parcelas}x` : '', col2[i] ? `${col2[i].cet.toFixed(2)}%` : '',
-                    ]),
-                    theme: 'striped',
-                    headStyles: { fillColor: [0, 168, 104], fontSize: 8 },
-                    styles: { fontSize: 8, cellPadding: 1.5 },
-                    columnStyles: {
-                        0: { cellWidth: 18 }, 1: { cellWidth: 22 },
-                        2: { cellWidth: 18 }, 3: { cellWidth: 22 },
-                    },
-                    margin: { left: 14 },
-                    tableWidth: 'wrap',
-                });
-
-                yPos = (doc as any).lastAutoTable.finalY + 10;
-            });
-        }
-
-        // Footer
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text('Gerado por Casa94 Stone - Simulador de Taxas', pageWidth / 2, pageHeight - 10, { align: 'center' });
-
-        doc.save(`CET_${containers.map(c => c.name).join('_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+        doc.save(`Proposta_${clienteNome.replace(/\s+/g, '_')}_CET.pdf`);
     };
 
-    // Exportar Excel
+    // Exportar Excel - Layout Profissional
     const exportExcel = () => {
+        // Prompt para dados do cliente
+        const clienteNome = prompt('Nome da Empresa/Cliente:')?.trim();
+        if (!clienteNome) return;
+        const clienteCNPJ = prompt('CNPJ/CPF (opcional):')?.trim() || '';
+
         const wsData: (string | number)[][] = [
-            ['CASA 94 - Calculador CET'],
+            ['STONE - PROPOSTA DE TAXAS'],
             [''],
+            ['Cliente:', clienteNome],
+            clienteCNPJ ? ['CNPJ/CPF:', clienteCNPJ] : [],
             ['Data:', new Date().toLocaleDateString('pt-BR')],
             ['RAV (Antecipação):', `${ravRate}%/mês`],
-            ['Fórmula:', 'CET = MDR + (RAV × Parcelas)'],
             [''],
-        ];
+        ].filter(row => row.length > 0);
 
         containers.forEach((container) => {
             const cetTable = getCETTable(container);
 
             wsData.push([container.name]);
-            wsData.push(['Débito:', `${container.debit}%`, 'Crédito 1x:', `${container.credit1x}%`]);
-            wsData.push(['2-6x:', `${container.credit2to6}%`, '7-12x:', `${container.credit7to12}%`, '13-18x:', `${container.credit13to18}%`]);
+            wsData.push(['Débito', 'Crédito 1x', '2-6x', '7-12x', '13-18x']);
+            wsData.push([
+                `${container.debit}%`,
+                `${container.credit1x}%`,
+                `${container.credit2to6}%`,
+                `${container.credit7to12}%`,
+                `${container.credit13to18}%`,
+            ]);
             wsData.push(['']);
             wsData.push(['Parcelas', 'CET (%)']);
             cetTable.forEach(row => {
@@ -243,8 +250,8 @@ export default function CETCalculator() {
 
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'CET');
-        XLSX.writeFile(wb, `CET_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, 'Proposta CET');
+        XLSX.writeFile(wb, `Proposta_${clienteNome.replace(/\s+/g, '_')}_CET.xlsx`);
     };
 
     return (
