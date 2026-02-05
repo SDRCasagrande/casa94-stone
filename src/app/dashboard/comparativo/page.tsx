@@ -70,13 +70,10 @@ export default function ComparativoPage() {
     });
     const [pixVolume, setPixVolume] = useState(20000);
 
-    // Modelos de Máquinas Stone
+    // Modelos de Máquinas Stone (oficiais)
     const STONE_MODELS = [
         { id: 'pos-smart', name: 'POS-Smart', aluguel: 0 },
-        { id: 'gps-smart', name: 'GPS-Smart', aluguel: 0 },
-        { id: 'stone-plus', name: 'Stone+', aluguel: 0 },
-        { id: 'ton-t1', name: 'Ton T1', aluguel: 0 },
-        { id: 'ton-t3', name: 'Ton T3', aluguel: 0 },
+        { id: 'gps-wifi', name: 'GPS-WIFI', aluguel: 0 },
     ];
 
     // Aluguel de Máquinas
@@ -676,58 +673,132 @@ export default function ComparativoPage() {
                 ))
             )}
 
-            {/* Aluguel de Máquinas */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                {/* Stone Máquinas */}
-                <div className="bg-slate-900/50 border border-[#00A868]/30 rounded-lg p-2">
-                    <div className="flex items-center gap-2 mb-2">
-                        <span className="text-[#00A868] font-bold text-xs">🖥️ Máquinas Stone</span>
+            {/* Aluguel de Máquinas - Design Moderno */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {/* Stone Máquinas - Card Futurista */}
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#00A868]/20 via-slate-900/80 to-slate-900/90 border border-[#00A868]/40 backdrop-blur-xl">
+                    {/* Glow Effect */}
+                    <div className="absolute -top-20 -right-20 w-40 h-40 bg-[#00A868]/20 rounded-full blur-3xl" />
+
+                    {/* Header */}
+                    <div className="relative px-4 py-3 border-b border-[#00A868]/20">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-lg bg-[#00A868]/30 flex items-center justify-center">
+                                    <span className="text-lg">🖥️</span>
+                                </div>
+                                <div>
+                                    <span className="text-white font-bold text-sm">Máquinas Stone</span>
+                                    {(() => {
+                                        // Cálculo de máquinas isentas por volume
+                                        const tpv = mode === 'simple' ? volumeTotal : advancedTotalVolume;
+                                        let maquinasIsentas = 0;
+                                        if (tpv >= 10000 && tpv < 30000) maquinasIsentas = 1;
+                                        else if (tpv >= 30000 && tpv < 50000) maquinasIsentas = 2;
+                                        else if (tpv >= 50000 && tpv < 100000) maquinasIsentas = 4;
+                                        else if (tpv >= 100000) maquinasIsentas = 4 + Math.floor((tpv - 50000) / 50000) * 2;
+
+                                        return maquinasIsentas > 0 ? (
+                                            <p className="text-[10px] text-[#00A868]">✓ {maquinasIsentas} máquina{maquinasIsentas > 1 ? 's' : ''} isenta{maquinasIsentas > 1 ? 's' : ''} por volume</p>
+                                        ) : null;
+                                    })()}
+                                </div>
+                            </div>
+
+                            {/* Botão Isenção por Volume */}
+                            <button
+                                onClick={() => {
+                                    const tpv = mode === 'simple' ? volumeTotal : advancedTotalVolume;
+                                    let maquinasIsentas = 0;
+                                    if (tpv >= 10000 && tpv < 30000) maquinasIsentas = 1;
+                                    else if (tpv >= 30000 && tpv < 50000) maquinasIsentas = 2;
+                                    else if (tpv >= 50000 && tpv < 100000) maquinasIsentas = 4;
+                                    else if (tpv >= 100000) maquinasIsentas = 4 + Math.floor((tpv - 50000) / 50000) * 2;
+
+                                    if (maquinasIsentas > 0) {
+                                        setStoneQtdMaquinas(maquinasIsentas);
+                                        setStoneAluguel(0);
+                                    } else {
+                                        alert('TPV mínimo de R$ 10.000 para isenção');
+                                    }
+                                }}
+                                className="px-3 py-1.5 bg-[#00A868]/30 hover:bg-[#00A868]/50 border border-[#00A868]/50 rounded-lg text-[10px] text-[#00A868] font-medium transition-all hover:scale-105"
+                            >
+                                ⚡ Isenção por Volume
+                            </button>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
-                        <div>
-                            <label className="text-[8px] text-slate-500">Modelo</label>
-                            <select value={stoneModelo} onChange={(e) => setStoneModelo(e.target.value)}
-                                className="w-full bg-slate-800 border border-slate-700 rounded px-1 py-1 text-white text-[10px]">
-                                {STONE_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                            </select>
+
+                    {/* Content */}
+                    <div className="relative p-4 space-y-3">
+                        <div className="grid grid-cols-3 gap-3">
+                            <div>
+                                <label className="text-[10px] text-slate-400 block mb-1">Modelo</label>
+                                <select value={stoneModelo} onChange={(e) => setStoneModelo(e.target.value)}
+                                    className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-2 py-2 text-white text-xs focus:border-[#00A868]/50 focus:ring-1 focus:ring-[#00A868]/30 transition-all">
+                                    {STONE_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-400 block mb-1">Quantidade</label>
+                                <input type="number" min="1" value={stoneQtdMaquinas} onChange={(e) => setStoneQtdMaquinas(Number(e.target.value))}
+                                    className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-2 py-2 text-white text-xs text-center focus:border-[#00A868]/50 focus:ring-1 focus:ring-[#00A868]/30 transition-all" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-400 block mb-1">Aluguel/mês</label>
+                                <input type="number" step="0.01" value={stoneAluguel} onChange={(e) => setStoneAluguel(Number(e.target.value))}
+                                    className="w-full bg-slate-800/50 border border-[#00A868]/30 rounded-lg px-2 py-2 text-[#00A868] text-xs text-center font-medium focus:border-[#00A868]/50 focus:ring-1 focus:ring-[#00A868]/30 transition-all" />
+                            </div>
                         </div>
-                        <div>
-                            <label className="text-[8px] text-slate-500">Qtd</label>
-                            <input type="number" min="1" value={stoneQtdMaquinas} onChange={(e) => setStoneQtdMaquinas(Number(e.target.value))}
-                                className="w-full bg-slate-800 border border-slate-700 rounded px-1 py-1 text-white text-[10px] text-center" />
+
+                        {/* Total com destaque */}
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
+                            <span className="text-xs text-slate-400">Total Mensal:</span>
+                            <div className="flex items-center gap-2">
+                                {stoneAluguel === 0 && (
+                                    <span className="px-2 py-0.5 bg-[#00A868]/20 text-[#00A868] text-[10px] font-medium rounded-full">ISENTO</span>
+                                )}
+                                <span className="text-lg font-bold text-[#00A868]">{formatCurrency(stoneRentalCost)}</span>
+                            </div>
                         </div>
-                        <div>
-                            <label className="text-[8px] text-slate-500">Aluguel/mês</label>
-                            <input type="number" step="0.01" value={stoneAluguel} onChange={(e) => setStoneAluguel(Number(e.target.value))}
-                                className="w-full bg-slate-800 border border-[#00A868]/30 rounded px-1 py-1 text-[#00A868] text-[10px] text-center" />
-                        </div>
-                    </div>
-                    <div className="mt-1 text-right">
-                        <span className="text-[10px] text-slate-400">Total: </span>
-                        <span className="text-xs font-bold text-[#00A868]">{formatCurrency(stoneRentalCost)}</span>
                     </div>
                 </div>
 
-                {/* Concorrente Máquinas */}
-                <div className="bg-slate-900/50 border border-red-500/30 rounded-lg p-2">
-                    <div className="flex items-center gap-2 mb-2">
-                        <span className="font-bold text-xs" style={{ color: competitor.color }}>🖥️ Máquinas {competitorName}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <div>
-                            <label className="text-[8px] text-slate-500">Quantidade</label>
-                            <input type="number" min="1" value={competitorQtdMaquinas} onChange={(e) => setCompetitorQtdMaquinas(Number(e.target.value))}
-                                className="w-full bg-slate-800 border border-slate-700 rounded px-1 py-1 text-white text-[10px] text-center" />
-                        </div>
-                        <div>
-                            <label className="text-[8px] text-slate-500">Aluguel/mês (cada)</label>
-                            <input type="number" step="0.01" value={competitorAluguel} onChange={(e) => setCompetitorAluguel(Number(e.target.value))}
-                                className="w-full bg-slate-800 border border-red-500/30 rounded px-1 py-1 text-red-400 text-[10px] text-center" />
+                {/* Concorrente Máquinas - Card Futurista */}
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-500/10 via-slate-900/80 to-slate-900/90 border border-red-500/30 backdrop-blur-xl">
+                    {/* Glow Effect */}
+                    <div className="absolute -top-20 -right-20 w-40 h-40 bg-red-500/10 rounded-full blur-3xl" />
+
+                    {/* Header */}
+                    <div className="relative px-4 py-3 border-b border-red-500/20">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
+                                <span className="text-lg">🖥️</span>
+                            </div>
+                            <span className="font-bold text-sm" style={{ color: competitor.color }}>Máquinas {competitorName}</span>
                         </div>
                     </div>
-                    <div className="mt-1 text-right">
-                        <span className="text-[10px] text-slate-400">Total: </span>
-                        <span className="text-xs text-red-400 font-bold">{formatCurrency(competitorRentalCost)}</span>
+
+                    {/* Content */}
+                    <div className="relative p-4 space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] text-slate-400 block mb-1">Quantidade</label>
+                                <input type="number" min="1" value={competitorQtdMaquinas} onChange={(e) => setCompetitorQtdMaquinas(Number(e.target.value))}
+                                    className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-2 py-2 text-white text-xs text-center focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30 transition-all" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-400 block mb-1">Aluguel/mês (cada)</label>
+                                <input type="number" step="0.01" value={competitorAluguel} onChange={(e) => setCompetitorAluguel(Number(e.target.value))}
+                                    className="w-full bg-slate-800/50 border border-red-500/30 rounded-lg px-2 py-2 text-red-400 text-xs text-center font-medium focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30 transition-all" />
+                            </div>
+                        </div>
+
+                        {/* Total */}
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
+                            <span className="text-xs text-slate-400">Total Mensal:</span>
+                            <span className="text-lg font-bold text-red-400">{formatCurrency(competitorRentalCost)}</span>
+                        </div>
                     </div>
                 </div>
             </div>
