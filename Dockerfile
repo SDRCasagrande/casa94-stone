@@ -19,6 +19,11 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Rodar migrations e gerar client
+RUN npx prisma generate
+ARG DATABASE_URL
+RUN npx prisma db push --skip-generate
+
 RUN npm run build
 
 # Produção

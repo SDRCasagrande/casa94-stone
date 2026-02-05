@@ -11,6 +11,7 @@ async function main() {
         { email: 'mateus@casa94.com', name: 'Mateus', password },
         { email: 'luciana@casa94.com', name: 'Luciana', password },
         { email: 'jose@casa94.com', name: 'José', password },
+        { email: 'nayane@casa94.com', name: 'Nayane', password },
     ];
 
     for (const user of users) {
