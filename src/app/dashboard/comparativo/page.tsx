@@ -195,9 +195,10 @@ export default function ComparativoPage() {
             stone: { debit: stoneSimple.debit, credit1x: stoneSimple.credit1x, pix: stoneSimple.pix },
             competitor: { name: competitorName, debit: competitorSimple.debit, credit1x: competitorSimple.credit1x, pix: competitorSimple.pix },
             economy: economy,
+            maquinas: { stoneQtd: stoneQtdMaquinas, stoneAluguel: stoneAluguel, competitorQtd: competitorQtdMaquinas, competitorAluguel: competitorAluguel, isento: stoneAluguel === 0 },
         };
         localStorage.setItem('casa94_comparativo', JSON.stringify(dataToSave));
-    }, [mode, volumeTotal, stoneSimple, competitorSimple, competitorName, economy, advancedTotalVolume]);
+    }, [mode, volumeTotal, stoneSimple, competitorSimple, competitorName, economy, advancedTotalVolume, stoneQtdMaquinas, stoneAluguel, competitorQtdMaquinas, competitorAluguel]);
 
     const formatCurrency = (value: number) =>
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
