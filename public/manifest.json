@@ -1,0 +1,24 @@
+{
+    "name": "Casa94 Stone",
+    "short_name": "Casa94",
+    "description": "Simulador de Taxas - Compare e calcule CET",
+    "start_url": "/dashboard",
+    "display": "standalone",
+    "background_color": "#0f172a",
+    "theme_color": "#00A868",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}

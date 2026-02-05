@@ -1,227 +1,387 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { calculateCET, formatPercent, formatCurrency } from '@/lib/calculator';
+import { useState } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+
+// Logo placeholder - será substituída pela logo real
+const LOGO_BASE64 = ''; // User enviará a logo
+
+interface BrandContainer {
+    id: string;
+    name: string;
+    debit: number;
+    credit1x: number;
+    credit2to6: number;
+    credit7to12: number;
+    credit13to18: number;
+}
+
+const DEFAULT_BRANDS = [
+    { name: 'VISA/MASTER', debit: 0.84, credit1x: 1.86, credit2to6: 2.18, credit7to12: 2.41, credit13to18: 2.41 },
+    { name: 'ELO', debit: 1.19, credit1x: 2.28, credit2to6: 2.66, credit7to12: 2.98, credit13to18: 2.98 },
+    { name: 'AMEX', debit: 0, credit1x: 2.39, credit2to6: 2.85, credit7to12: 3.20, credit13to18: 3.20 },
+    { name: 'HIPERCARD', debit: 0, credit1x: 2.15, credit2to6: 2.55, credit7to12: 2.90, credit13to18: 2.90 },
+    { name: 'CABAL', debit: 0.99, credit1x: 1.99, credit2to6: 2.35, credit7to12: 2.70, credit13to18: 2.70 },
+];
 
 export default function CETCalculator() {
-    // Taxas MDR
-    const [mdrDebit, setMdrDebit] = useState(0.84);
-    const [mdrCredit1x, setMdrCredit1x] = useState(1.86);
-    const [mdrCredit2to6, setMdrCredit2to6] = useState(2.18);
-    const [mdrCredit7to12, setMdrCredit7to12] = useState(2.41);
-    const [mdrCredit13to18, setMdrCredit13to18] = useState(2.41);
     const [ravRate, setRavRate] = useState(1.30);
-    const [pixRate, setPixRate] = useState(0.75);
+    const [containers, setContainers] = useState<BrandContainer[]>([
+        { id: '1', name: 'VISA/MASTER', debit: 0.84, credit1x: 1.86, credit2to6: 2.18, credit7to12: 2.41, credit13to18: 2.41 },
+    ]);
 
-    // Share Transacional (%)
-    const [shareDebit, setShareDebit] = useState(30);
-    const [shareCredit, setShareCredit] = useState(50);
-    const [sharePix, setSharePix] = useState(20);
+    // Calcula CET com a fórmula correta
+    // Para nx: média de meses = (1 + 2 + ... + n) / n = (n + 1) / 2
+    // CET = 1 - (((100 * (1 - MDR)) * (1 - (RAV * mediaMeses))) / 100)
+    const calculateCET = (mdr: number, parcelas: number) => {
+        const mdrDecimal = mdr / 100;
+        const ravDecimal = ravRate / 100;
+        const mediaMeses = (parcelas + 1) / 2; // Média das parcelas em meses
+        const cet = 1 - (((100 * (1 - mdrDecimal)) * (1 - (ravDecimal * mediaMeses))) / 100);
+        return cet * 100; // Retorna em %
+    };
 
-    // Volume
-    const [totalVolume, setTotalVolume] = useState(100000);
+    // Adiciona novo container
+    const addContainer = () => {
+        const nextBrand = DEFAULT_BRANDS[containers.length % DEFAULT_BRANDS.length];
+        setContainers([...containers, {
+            id: Date.now().toString(),
+            ...nextBrand,
+        }]);
+    };
 
-    // Calcula CET para cada parcela
-    const cetTable = useMemo(() => {
+    // Remove container
+    const removeContainer = (id: string) => {
+        if (containers.length > 1) {
+            setContainers(containers.filter(c => c.id !== id));
+        }
+    };
+
+    // Atualiza container
+    const updateContainer = (id: string, field: keyof BrandContainer, value: string | number) => {
+        setContainers(containers.map(c =>
+            c.id === id ? { ...c, [field]: value } : c
+        ));
+    };
+
+    // Aplica preset de bandeira
+    const applyPreset = (id: string, brandName: string) => {
+        const preset = DEFAULT_BRANDS.find(b => b.name === brandName);
+        if (preset) {
+            setContainers(containers.map(c =>
+                c.id === id ? { ...c, ...preset } : c
+            ));
+        }
+    };
+
+    // Gera tabela CET para um container
+    const getCETTable = (container: BrandContainer) => {
         return Array.from({ length: 18 }, (_, i) => {
             const parcelas = i + 1;
-            let mdr = mdrCredit1x;
-            if (parcelas >= 2 && parcelas <= 6) mdr = mdrCredit2to6;
-            if (parcelas >= 7 && parcelas <= 12) mdr = mdrCredit7to12;
-            if (parcelas >= 13) mdr = mdrCredit13to18;
-
-            const cet = calculateCET(mdr, ravRate, parcelas);
-            return { parcelas, mdr, cet };
+            let mdr = container.credit1x;
+            if (parcelas >= 2 && parcelas <= 6) mdr = container.credit2to6;
+            if (parcelas >= 7 && parcelas <= 12) mdr = container.credit7to12;
+            if (parcelas >= 13) mdr = container.credit13to18;
+            return { parcelas, cet: calculateCET(mdr, parcelas) };
         });
-    }, [mdrCredit1x, mdrCredit2to6, mdrCredit7to12, mdrCredit13to18, ravRate]);
+    };
 
-    // Calcula custo total
-    const costs = useMemo(() => {
-        const debitVolume = (totalVolume * shareDebit) / 100;
-        const creditVolume = (totalVolume * shareCredit) / 100;
-        const pixVolume = (totalVolume * sharePix) / 100;
+    const inputClass = "w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent";
 
-        const debitCost = (debitVolume * mdrDebit) / 100;
-        const pixCost = (pixVolume * pixRate) / 100;
+    // Exportar PDF
+    const exportPDF = () => {
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
 
-        // Média ponderada do crédito (assumindo distribuição uniforme)
-        const avgCET = cetTable.reduce((sum, c) => sum + c.cet, 0) / 18;
-        const creditCost = (creditVolume * avgCET) / 100;
+        // Header
+        doc.setFontSize(22);
+        doc.setTextColor(16, 185, 129);
+        doc.text('CASA 94', pageWidth / 2, 20, { align: 'center' });
 
-        return {
-            debit: { volume: debitVolume, cost: debitCost, rate: mdrDebit },
-            credit: { volume: creditVolume, cost: creditCost, rate: avgCET },
-            pix: { volume: pixVolume, cost: pixCost, rate: pixRate },
-            total: debitCost + creditCost + pixCost,
-        };
-    }, [totalVolume, shareDebit, shareCredit, sharePix, mdrDebit, pixRate, cetTable]);
+        doc.setFontSize(12);
+        doc.setTextColor(100);
+        doc.text('Simulador de Taxas - CET', pageWidth / 2, 28, { align: 'center' });
 
-    const inputClass = "w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all";
+        doc.setFontSize(10);
+        doc.setTextColor(0);
+        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 40);
+        doc.text(`RAV (Antecipação): ${ravRate}%/mês`, 14, 46);
+        doc.text('Fórmula: CET = MDR + (RAV × Parcelas)', 14, 52);
+
+        let yPos = 65;
+
+        containers.forEach((container, index) => {
+            const cetTable = getCETTable(container);
+
+            if (yPos > 250) {
+                doc.addPage();
+                yPos = 20;
+            }
+
+            // Título da bandeira
+            doc.setFontSize(14);
+            doc.setTextColor(16, 185, 129);
+            doc.text(container.name, 14, yPos);
+            yPos += 8;
+
+            // Taxas MDR
+            doc.setFontSize(9);
+            doc.setTextColor(100);
+            doc.text(`Débito: ${container.debit}% | Crédito 1x: ${container.credit1x}% | 2-6x: ${container.credit2to6}% | 7-12x: ${container.credit7to12}% | 13-18x: ${container.credit13to18}%`, 14, yPos);
+            yPos += 5;
+
+            // Tabela CET
+            autoTable(doc, {
+                startY: yPos,
+                head: [['Parcelas', 'CET (%)']],
+                body: cetTable.map(row => [`${row.parcelas}x`, `${row.cet.toFixed(2)}%`]),
+                theme: 'striped',
+                headStyles: { fillColor: [16, 185, 129] },
+                styles: { fontSize: 8 },
+                columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 30 } },
+                margin: { left: 14 },
+            });
+
+            yPos = (doc as any).lastAutoTable.finalY + 15;
+        });
+
+        // Footer
+        const pageHeight = doc.internal.pageSize.getHeight();
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text('Gerado por Casa94 Stone - Simulador de Taxas', pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+        doc.save(`CET_${new Date().toISOString().split('T')[0]}.pdf`);
+    };
+
+    // Exportar Excel
+    const exportExcel = () => {
+        const wsData: (string | number)[][] = [
+            ['CASA 94 - Calculador CET'],
+            [''],
+            ['Data:', new Date().toLocaleDateString('pt-BR')],
+            ['RAV (Antecipação):', `${ravRate}%/mês`],
+            ['Fórmula:', 'CET = MDR + (RAV × Parcelas)'],
+            [''],
+        ];
+
+        containers.forEach((container) => {
+            const cetTable = getCETTable(container);
+
+            wsData.push([container.name]);
+            wsData.push(['Débito:', `${container.debit}%`, 'Crédito 1x:', `${container.credit1x}%`]);
+            wsData.push(['2-6x:', `${container.credit2to6}%`, '7-12x:', `${container.credit7to12}%`, '13-18x:', `${container.credit13to18}%`]);
+            wsData.push(['']);
+            wsData.push(['Parcelas', 'CET (%)']);
+            cetTable.forEach(row => {
+                wsData.push([`${row.parcelas}x`, `${row.cet.toFixed(2)}%`]);
+            });
+            wsData.push(['']);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'CET');
+        XLSX.writeFile(wb, `CET_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
 
     return (
         <div className="space-y-8">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-white mb-2">Calculador de CET</h1>
-                <p className="text-slate-400">Calcule o Custo Efetivo Total considerando MDR + RAV</p>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-white mb-2">Calculador de CET</h1>
+                    <p className="text-slate-400 text-sm">CET = 1 - ((100 × (1 - MDR)) × (1 - (RAV × média_meses))) / 100</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm text-slate-400">RAV (%/mês):</span>
+                        <input
+                            type="number"
+                            step="0.01"
+                            value={ravRate}
+                            onChange={(e) => setRavRate(Number(e.target.value))}
+                            className="w-24 bg-slate-800 border border-emerald-500/50 rounded-lg px-3 py-2 text-emerald-400 font-bold text-center"
+                        />
+                    </div>
+                    <button
+                        onClick={addContainer}
+                        className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-xl transition-all"
+                    >
+                        + Bandeira
+                    </button>
+                    <button
+                        onClick={exportPDF}
+                        className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 font-medium rounded-xl transition-all flex items-center gap-2"
+                    >
+                        📄 PDF
+                    </button>
+                    <button
+                        onClick={exportExcel}
+                        className="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 font-medium rounded-xl transition-all flex items-center gap-2"
+                    >
+                        📊 Excel
+                    </button>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Taxas MDR */}
-                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        📊 Taxas MDR
-                    </h3>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm text-slate-400 mb-2">Débito (%)</label>
-                            <input type="number" step="0.01" value={mdrDebit} onChange={(e) => setMdrDebit(Number(e.target.value))} className={inputClass} />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-slate-400 mb-2">Crédito 1x (%)</label>
-                            <input type="number" step="0.01" value={mdrCredit1x} onChange={(e) => setMdrCredit1x(Number(e.target.value))} className={inputClass} />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-slate-400 mb-2">Crédito 2-6x (%)</label>
-                            <input type="number" step="0.01" value={mdrCredit2to6} onChange={(e) => setMdrCredit2to6(Number(e.target.value))} className={inputClass} />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-slate-400 mb-2">Crédito 7-12x (%)</label>
-                            <input type="number" step="0.01" value={mdrCredit7to12} onChange={(e) => setMdrCredit7to12(Number(e.target.value))} className={inputClass} />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-slate-400 mb-2">Crédito 13-18x (%)</label>
-                            <input type="number" step="0.01" value={mdrCredit13to18} onChange={(e) => setMdrCredit13to18(Number(e.target.value))} className={inputClass} />
-                        </div>
-                        <div className="pt-4 border-t border-slate-700">
-                            <label className="block text-sm text-slate-400 mb-2">RAV - Antecipação/mês (%)</label>
-                            <input type="number" step="0.01" value={ravRate} onChange={(e) => setRavRate(Number(e.target.value))} className={inputClass} />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-slate-400 mb-2">PIX (%)</label>
-                            <input type="number" step="0.01" value={pixRate} onChange={(e) => setPixRate(Number(e.target.value))} className={inputClass} />
-                        </div>
-                    </div>
-                </div>
+            {/* Containers Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {containers.map((container) => {
+                    const cetTable = getCETTable(container);
 
-                {/* Share Transacional */}
-                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        📈 Share Transacional
-                    </h3>
-
-                    <div className="mb-6">
-                        <label className="block text-sm text-slate-400 mb-2">Volume Total (R$)</label>
-                        <input type="number" value={totalVolume} onChange={(e) => setTotalVolume(Number(e.target.value))} className={inputClass} />
-                    </div>
-
-                    <div className="space-y-6">
-                        {/* Débito */}
-                        <div>
-                            <div className="flex justify-between mb-2">
-                                <span className="text-sm text-slate-400">💳 Débito</span>
-                                <span className="text-sm font-medium text-white">{shareDebit}%</span>
+                    return (
+                        <div key={container.id} className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
+                            {/* Header com seletor de bandeira */}
+                            <div className="bg-gradient-to-r from-emerald-600 to-emerald-500 p-4 flex items-center justify-between">
+                                <select
+                                    value={container.name}
+                                    onChange={(e) => applyPreset(container.id, e.target.value)}
+                                    className="bg-white/20 border-0 text-white font-bold text-lg rounded-lg px-3 py-1 focus:ring-2 focus:ring-white/50"
+                                >
+                                    {DEFAULT_BRANDS.map(b => (
+                                        <option key={b.name} value={b.name} className="text-slate-900">{b.name}</option>
+                                    ))}
+                                    <option value="OUTRA" className="text-slate-900">Outra...</option>
+                                </select>
+                                {containers.length > 1 && (
+                                    <button
+                                        onClick={() => removeContainer(container.id)}
+                                        className="p-1 hover:bg-white/20 rounded-lg transition-colors text-white/80 hover:text-white"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
                             </div>
-                            <input
-                                type="range"
-                                min="0" max="100"
-                                value={shareDebit}
-                                onChange={(e) => setShareDebit(Number(e.target.value))}
-                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                            />
-                            <p className="text-xs text-slate-500 mt-1">{formatCurrency(costs.debit.volume)}</p>
-                        </div>
 
-                        {/* Crédito */}
-                        <div>
-                            <div className="flex justify-between mb-2">
-                                <span className="text-sm text-slate-400">💳 Crédito</span>
-                                <span className="text-sm font-medium text-white">{shareCredit}%</span>
-                            </div>
-                            <input
-                                type="range"
-                                min="0" max="100"
-                                value={shareCredit}
-                                onChange={(e) => setShareCredit(Number(e.target.value))}
-                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
-                            />
-                            <p className="text-xs text-slate-500 mt-1">{formatCurrency(costs.credit.volume)}</p>
-                        </div>
-
-                        {/* PIX */}
-                        <div>
-                            <div className="flex justify-between mb-2">
-                                <span className="text-sm text-slate-400">📱 PIX</span>
-                                <span className="text-sm font-medium text-white">{sharePix}%</span>
-                            </div>
-                            <input
-                                type="range"
-                                min="0" max="100"
-                                value={sharePix}
-                                onChange={(e) => setSharePix(Number(e.target.value))}
-                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                            />
-                            <p className="text-xs text-slate-500 mt-1">{formatCurrency(costs.pix.volume)}</p>
-                        </div>
-
-                        {/* Total Check */}
-                        <div className={`p-3 rounded-xl ${shareDebit + shareCredit + sharePix === 100 ? 'bg-emerald-500/20 border border-emerald-500/30' : 'bg-amber-500/20 border border-amber-500/30'}`}>
-                            <p className={`text-sm font-medium ${shareDebit + shareCredit + sharePix === 100 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                Total: {shareDebit + shareCredit + sharePix}%
-                                {shareDebit + shareCredit + sharePix !== 100 && ' (Deve ser 100%)'}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Custo Resumo */}
-                    <div className="mt-6 pt-6 border-t border-slate-700 space-y-3">
-                        <div className="flex justify-between items-center">
-                            <span className="text-slate-400">Taxa Débito</span>
-                            <span className="text-white font-medium">{formatCurrency(costs.debit.cost)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-slate-400">Taxa Crédito</span>
-                            <span className="text-white font-medium">{formatCurrency(costs.credit.cost)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-slate-400">Taxa PIX</span>
-                            <span className="text-white font-medium">{formatCurrency(costs.pix.cost)}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-3 border-t border-slate-700">
-                            <span className="text-white font-semibold">Custo Total</span>
-                            <span className="text-2xl font-bold text-emerald-400">{formatCurrency(costs.total)}</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Tabela CET */}
-                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        📋 CET por Parcela
-                    </h3>
-                    <p className="text-sm text-slate-400 mb-4">MDR + RAV ({ravRate}%/mês)</p>
-
-                    <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
-                        {cetTable.map((row) => (
-                            <div
-                                key={row.parcelas}
-                                className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl hover:bg-slate-800 transition-colors"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <span className="w-8 h-8 bg-gradient-to-br from-emerald-500/20 to-blue-500/20 rounded-lg flex items-center justify-center text-sm font-bold text-white">
-                                        {row.parcelas}x
-                                    </span>
-                                    <span className="text-sm text-slate-400">MDR {formatPercent(row.mdr)}</span>
+                            {/* Taxas MDR */}
+                            <div className="p-4 space-y-3 border-b border-slate-800">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs text-slate-400 mb-1">Débito</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={container.debit}
+                                                onChange={(e) => updateContainer(container.id, 'debit', Number(e.target.value))}
+                                                className={inputClass}
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">%</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-slate-400 mb-1">Crédito 1x</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={container.credit1x}
+                                                onChange={(e) => updateContainer(container.id, 'credit1x', Number(e.target.value))}
+                                                className={inputClass}
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">%</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <span className={`text-lg font-bold ${row.cet < 5 ? 'text-emerald-400' :
-                                        row.cet < 10 ? 'text-amber-400' : 'text-red-400'
-                                    }`}>
-                                    {formatPercent(row.cet)}
-                                </span>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label className="block text-xs text-slate-400 mb-1">2-6x</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={container.credit2to6}
+                                                onChange={(e) => updateContainer(container.id, 'credit2to6', Number(e.target.value))}
+                                                className={inputClass}
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">%</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-slate-400 mb-1">7-12x</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={container.credit7to12}
+                                                onChange={(e) => updateContainer(container.id, 'credit7to12', Number(e.target.value))}
+                                                className={inputClass}
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">%</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-slate-400 mb-1">13-18x</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={container.credit13to18}
+                                                onChange={(e) => updateContainer(container.id, 'credit13to18', Number(e.target.value))}
+                                                className={inputClass}
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">%</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        ))}
-                    </div>
+
+                            {/* Tabela CET */}
+                            <div className="p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="text-xs text-slate-400 uppercase tracking-wider">Débito</span>
+                                    <span className="text-sm font-bold text-emerald-400">{container.debit.toFixed(2)}%</span>
+                                </div>
+
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-slate-700">
+                                            <th className="text-left py-2 text-slate-400 font-medium">Parcelas</th>
+                                            <th className="text-right py-2 text-slate-400 font-medium">Desconto %</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {cetTable.map((row) => (
+                                            <tr key={row.parcelas} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                                                <td className="py-1.5 text-white">{row.parcelas}x</td>
+                                                <td className={`py-1.5 text-right font-medium ${row.cet < 5 ? 'text-emerald-400' :
+                                                    row.cet < 10 ? 'text-amber-400' : 'text-red-400'
+                                                    }`}>
+                                                    {row.cet.toFixed(2)}%
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Legenda */}
+            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+                <h3 className="text-sm font-medium text-white mb-3">📋 Legenda</h3>
+                <div className="flex flex-wrap gap-4 text-sm">
+                    <span className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-emerald-400"></span>
+                        <span className="text-slate-400">CET &lt; 5%</span>
+                    </span>
+                    <span className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-amber-400"></span>
+                        <span className="text-slate-400">5% ≤ CET &lt; 10%</span>
+                    </span>
+                    <span className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-red-400"></span>
+                        <span className="text-slate-400">CET ≥ 10%</span>
+                    </span>
                 </div>
+                <p className="text-xs text-slate-500 mt-3">
+                    Fórmula: CET = MDR + (RAV × Parcelas) | RAV atual: {ravRate}%/mês
+                </p>
             </div>
         </div>
     );

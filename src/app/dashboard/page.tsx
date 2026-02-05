@@ -3,139 +3,100 @@
 import Link from 'next/link';
 
 export default function DashboardHome() {
-    const stats = [
-        { label: 'Simulações Este Mês', value: '24', change: '+12%', icon: '📊', color: 'emerald' },
-        { label: 'Economia Gerada', value: 'R$ 45.2K', change: '+8%', icon: '💰', color: 'blue' },
-        { label: 'Clientes Atendidos', value: '18', change: '+5', icon: '👥', color: 'purple' },
-        { label: 'Taxa Média CET', value: '4.2%', change: '-0.3%', icon: '📈', color: 'amber' },
-    ];
-
-    const recentSimulations = [
-        { client: 'Auto Posto Comaxin', date: '05/02/2026', economy: 'R$ 2.518,14', status: 'Fechado' },
-        { client: 'Supermercado BomPreço', date: '04/02/2026', economy: 'R$ 1.890,00', status: 'Proposta' },
-        { client: 'Farmácia Popular', date: '03/02/2026', economy: 'R$ 950,00', status: 'Negociando' },
-        { client: 'Loja de Roupas ModaFit', date: '02/02/2026', economy: 'R$ 1.234,56', status: 'Fechado' },
-    ];
-
     const quickActions = [
-        { href: '/dashboard/cet', icon: '📊', label: 'Calcular CET', desc: 'Custo Efetivo Total por parcela' },
-        { href: '/dashboard/comparativo', icon: '⚖️', label: 'Comparar Taxas', desc: 'Concorrente vs Stone' },
+        { href: '/dashboard/cet', icon: '📊', label: 'Calcular CET', desc: 'Custo Efetivo Total' },
+        { href: '/dashboard/comparativo', icon: '⚖️', label: 'Comparar Taxas', desc: 'Stone vs Concorrente' },
     ];
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
             {/* Welcome Banner */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-blue-500 p-8">
+            <div className="relative overflow-hidden rounded-2xl bg-[#00A868] p-6 sm:p-8">
                 <div className="relative z-10">
-                    <h1 className="text-3xl font-bold text-white mb-2">
-                        Bom dia, Consultor! 👋
+                    <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
+                        Bem-vindo! 👋
                     </h1>
-                    <p className="text-emerald-100 max-w-lg">
-                        Você tem 3 propostas pendentes e gerou R$ 45.200 em economia para seus clientes este mês.
+                    <p className="text-emerald-100 text-sm sm:text-base max-w-lg">
+                        Calcule CET, compare taxas e gere propostas profissionais para seus clientes.
                     </p>
-                    <div className="flex gap-3 mt-6">
+                    <div className="flex flex-col sm:flex-row gap-3 mt-6">
                         <Link
                             href="/dashboard/comparativo"
-                            className="px-5 py-2.5 bg-white text-emerald-600 font-semibold rounded-xl hover:bg-emerald-50 transition-colors shadow-lg"
+                            className="px-5 py-2.5 bg-white text-[#00A868] font-semibold rounded-xl hover:bg-emerald-50 transition-colors shadow-lg text-center"
                         >
                             Nova Simulação
                         </Link>
                         <Link
-                            href="/dashboard/simulacoes"
-                            className="px-5 py-2.5 bg-white/20 text-white font-semibold rounded-xl hover:bg-white/30 transition-colors backdrop-blur-sm"
+                            href="/dashboard/cet"
+                            className="px-5 py-2.5 bg-white/20 text-white font-semibold rounded-xl hover:bg-white/30 transition-colors backdrop-blur-sm text-center"
                         >
-                            Ver Propostas
+                            Calcular CET
                         </Link>
                     </div>
                 </div>
-                <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                <div className="absolute left-1/2 bottom-0 w-48 h-48 bg-blue-400/20 rounded-full blur-2xl translate-y-1/2" />
+                <div className="absolute right-0 top-0 w-48 h-48 sm:w-64 sm:h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {stats.map((stat, i) => (
-                    <div
+            {/* Quick Actions */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {quickActions.map((action, i) => (
+                    <Link
                         key={i}
-                        className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-colors group"
+                        href={action.href}
+                        className="flex items-center gap-4 p-5 sm:p-6 bg-slate-900/50 border border-slate-800 rounded-2xl hover:border-[#00A868]/50 hover:bg-slate-900 transition-all group"
                     >
-                        <div className="flex items-start justify-between mb-4">
-                            <span className="text-2xl group-hover:scale-110 transition-transform">{stat.icon}</span>
-                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${stat.change.startsWith('+') ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
-                                }`}>
-                                {stat.change}
-                            </span>
+                        <span className="text-3xl sm:text-4xl group-hover:scale-110 transition-transform">{action.icon}</span>
+                        <div>
+                            <p className="font-semibold text-white text-lg">{action.label}</p>
+                            <p className="text-sm text-slate-400">{action.desc}</p>
                         </div>
-                        <p className="text-2xl font-bold text-white mb-1">{stat.value}</p>
-                        <p className="text-sm text-slate-500">{stat.label}</p>
-                    </div>
+                    </Link>
                 ))}
             </div>
 
-            {/* Main Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Recent Simulations */}
-                <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-semibold text-white">Simulações Recentes</h3>
-                        <Link href="/dashboard/simulacoes" className="text-sm text-emerald-400 hover:text-emerald-300">
-                            Ver todas →
-                        </Link>
+            {/* Info Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 sm:p-6">
+                    <div className="flex items-center gap-3 mb-3">
+                        <span className="text-2xl">📊</span>
+                        <h3 className="font-semibold text-white">Calculador CET</h3>
                     </div>
-                    <div className="space-y-3">
-                        {recentSimulations.map((sim, i) => (
-                            <div
-                                key={i}
-                                className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
-                            >
-                                <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-blue-500/20 rounded-xl flex items-center justify-center text-emerald-400 font-bold">
-                                    {sim.client.charAt(0)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-white truncate">{sim.client}</p>
-                                    <p className="text-sm text-slate-500">{sim.date}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-semibold text-emerald-400">{sim.economy}</p>
-                                    <p className={`text-xs px-2 py-0.5 rounded-full ${sim.status === 'Fechado' ? 'bg-emerald-500/20 text-emerald-400' :
-                                            sim.status === 'Proposta' ? 'bg-blue-500/20 text-blue-400' :
-                                                'bg-amber-500/20 text-amber-400'
-                                        }`}>
-                                        {sim.status}
-                                    </p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    <p className="text-sm text-slate-400">
+                        Calcule o Custo Efetivo Total por bandeira com a fórmula correta MDR + RAV.
+                    </p>
                 </div>
 
-                {/* Quick Actions */}
-                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-                    <h3 className="text-lg font-semibold text-white mb-6">Ações Rápidas</h3>
-                    <div className="space-y-3">
-                        {quickActions.map((action, i) => (
-                            <Link
-                                key={i}
-                                href={action.href}
-                                className="flex items-center gap-4 p-4 bg-gradient-to-r from-slate-800 to-slate-800/50 rounded-xl hover:from-emerald-500/10 hover:to-blue-500/10 border border-transparent hover:border-emerald-500/30 transition-all group"
-                            >
-                                <span className="text-2xl group-hover:scale-110 transition-transform">{action.icon}</span>
-                                <div>
-                                    <p className="font-medium text-white">{action.label}</p>
-                                    <p className="text-sm text-slate-500">{action.desc}</p>
-                                </div>
-                            </Link>
-                        ))}
+                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 sm:p-6">
+                    <div className="flex items-center gap-3 mb-3">
+                        <span className="text-2xl">⚖️</span>
+                        <h3 className="font-semibold text-white">Comparação</h3>
                     </div>
+                    <p className="text-sm text-slate-400">
+                        Compare Stone vs outras adquirentes e mostre a economia para o cliente.
+                    </p>
+                </div>
 
-                    {/* Stone Banner */}
-                    <div className="mt-6 p-4 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 border border-emerald-500/20 rounded-xl">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-6 h-6 bg-emerald-500 rounded-lg flex items-center justify-center text-white text-xs font-bold">S</div>
-                            <span className="font-semibold text-white">Stone</span>
-                        </div>
+                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 sm:p-6 sm:col-span-2 lg:col-span-1">
+                    <div className="flex items-center gap-3 mb-3">
+                        <span className="text-2xl">📄</span>
+                        <h3 className="font-semibold text-white">Exportar</h3>
+                    </div>
+                    <p className="text-sm text-slate-400">
+                        Gere PDF e Excel profissionais com a logo Stone para apresentar aos clientes.
+                    </p>
+                </div>
+            </div>
+
+            {/* Stone Banner */}
+            <div className="bg-slate-900/50 border border-[#00A868]/30 rounded-2xl p-5 sm:p-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div className="w-12 h-12 bg-[#00A868] rounded-xl flex items-center justify-center text-white text-xl font-bold">
+                        S
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="font-semibold text-white mb-1">Stone - Melhores Taxas do Mercado</h3>
                         <p className="text-sm text-slate-400">
-                            Melhores taxas do mercado com antecipação flexível e sem mensalidade.
+                            Antecipação flexível, sem mensalidade, e o melhor atendimento do Brasil.
                         </p>
                     </div>
                 </div>
