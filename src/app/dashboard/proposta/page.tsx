@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
-import jsPDF from 'jspdf';
+import { PDF_LOGOS } from '@/utils/pdfLogos';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
@@ -84,6 +85,61 @@ export default function PropostaPage() {
     const [competitorAluguel, setCompetitorAluguel] = useState(109);
 
     const formatCurrency = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
+    // === PERSISTÊNCIA (AUTO-SAVE) ===
+    const STORAGE_KEY = 'CASA94_PROPOSTA_DATA';
+
+    // Carregar dados salvos ao iniciar
+    useEffect(() => {
+        const savedData = localStorage.getItem(STORAGE_KEY);
+        if (savedData) {
+            try {
+                const parsed = JSON.parse(savedData);
+                if (parsed.clienteNome) setClienteNome(parsed.clienteNome);
+                if (parsed.clienteCNPJ) setClienteCNPJ(parsed.clienteCNPJ);
+                if (parsed.volumeTotal) setVolumeTotal(parsed.volumeTotal);
+                if (parsed.shares) setShares(parsed.shares);
+                if (parsed.cardBrand) setCardBrand(parsed.cardBrand);
+                if (parsed.stone) setStone(parsed.stone);
+                if (parsed.competitorName) setCompetitorName(parsed.competitorName);
+                if (parsed.competitor) setCompetitor(parsed.competitor);
+                if (parsed.stoneQtdMaquinas) setStoneQtdMaquinas(parsed.stoneQtdMaquinas);
+                if (parsed.stoneAluguel !== undefined) setStoneAluguel(parsed.stoneAluguel);
+                if (parsed.competitorQtdMaquinas) setCompetitorQtdMaquinas(parsed.competitorQtdMaquinas);
+                if (parsed.competitorAluguel !== undefined) setCompetitorAluguel(parsed.competitorAluguel);
+            } catch (error) {
+                console.error('Erro ao carregar dados salvos:', error);
+            }
+        }
+    }, []);
+
+    // Salvar dados automaticamente quando mudam
+    useEffect(() => {
+        const dataToSave = {
+            clienteNome, clienteCNPJ, volumeTotal, shares, cardBrand, stone,
+            competitorName, competitor, stoneQtdMaquinas, stoneAluguel,
+            competitorQtdMaquinas, competitorAluguel
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+    }, [clienteNome, clienteCNPJ, volumeTotal, shares, cardBrand, stone, competitorName, competitor, stoneQtdMaquinas, stoneAluguel, competitorQtdMaquinas, competitorAluguel]);
+
+    // Função de Reset
+    const resetForm = () => {
+        if (!confirm('Tem certeza? Isso apagará todos os dados preenchidos.')) return;
+        localStorage.removeItem(STORAGE_KEY);
+        setClienteNome('');
+        setClienteCNPJ('');
+        setVolumeTotal(100000);
+        setShares({ debit: 30, credit: 50, pix: 20 });
+        setCardBrand('VISA/MASTER');
+        setStone({ debit: 0.84, credit1x: 1.86, credit2to6: 2.18, credit7to12: 2.41, credit13to18: 2.41, rav: 1.30, pix: 0.75 });
+        setCompetitorName('Rede');
+        setCompetitor({ debit: 1.50, credit1x: 2.50, credit2to6: 3.00, credit7to12: 3.50, credit13to18: 3.99, rav: 1.50, pix: 1.00 });
+        setStoneQtdMaquinas(1);
+        setStoneAluguel(0);
+        setCompetitorQtdMaquinas(1);
+        setCompetitorAluguel(109);
+    };
 
     // Cálculos
     const debitVolume = volumeTotal * shares.debit / 100;
@@ -184,10 +240,18 @@ export default function PropostaPage() {
         // Header verde Stone
         doc.setFillColor(0, 168, 104);
         doc.rect(0, 0, pageWidth, 35, 'F');
+
+        // Logo Stone no Header
+        try {
+            doc.addImage(PDF_LOGOS.STONE, 'PNG', pageWidth / 2 - 25, 5, 50, 15);
+        } catch (e) {
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(32);
+            doc.setFont('helvetica', 'bold');
+            doc.text('STONE', pageWidth / 2, 18, { align: 'center' });
+        }
+
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(32);
-        doc.setFont('helvetica', 'bold');
-        doc.text('STONE', pageWidth / 2, 18, { align: 'center' });
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
         doc.text('PROPOSTA DE TAXAS', pageWidth / 2, 28, { align: 'center' });
@@ -211,10 +275,33 @@ export default function PropostaPage() {
 
         // Bandeira do cartão - Taxas horizontais
         yPos += 6;
-        doc.setTextColor(0, 168, 104);
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.text(cardBrand, 15, yPos);
+
+        if (cardBrand === 'VISA/MASTER') {
+            try {
+                doc.addImage(PDF_LOGOS.VISA, 'PNG', 15, yPos - 5, 20, 10);
+                doc.addImage(PDF_LOGOS.MASTER, 'PNG', 40, yPos - 5, 20, 10);
+            } catch (e) {
+                doc.setTextColor(0, 168, 104);
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.text(cardBrand, 15, yPos);
+            }
+        } else if (cardBrand === 'ELO') {
+            try {
+                doc.addImage(PDF_LOGOS.ELO, 'PNG', 15, yPos - 5, 20, 10);
+            } catch (e) {
+                doc.setTextColor(0, 168, 104);
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.text(cardBrand, 15, yPos);
+            }
+        } else {
+            doc.setTextColor(0, 168, 104);
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text(cardBrand, 15, yPos);
+        }
+
         yPos += 4;
 
         autoTable(doc, {
@@ -349,6 +436,7 @@ export default function PropostaPage() {
                     <p className="text-slate-400 text-sm">CET + Comparação + Máquinas - Tudo em um só lugar</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
+                    <button onClick={resetForm} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm rounded-lg flex items-center gap-2 border border-slate-600 transition-colors">🗑️ Resetar</button>
                     <button onClick={shareWhatsApp} className="px-4 py-2 bg-green-600/20 hover:bg-green-600/30 text-green-400 text-sm rounded-lg flex items-center gap-2 border border-green-600/30">📱 WhatsApp</button>
                     <button onClick={exportPDF} className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 text-sm rounded-lg flex items-center gap-2">📄 PDF</button>
                     <button onClick={exportExcel} className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-sm rounded-lg flex items-center gap-2">📊 Excel</button>
