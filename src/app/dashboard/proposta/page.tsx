@@ -251,6 +251,31 @@ export default function PropostaPage() {
         XLSX.writeFile(wb, `Proposta_${clienteNome.replace(/\s+/g, '_')}.xlsx`);
     };
 
+    // === SHARE WHATSAPP ===
+    const shareWhatsApp = () => {
+        if (!clienteNome.trim()) { alert('Preencha o nome do cliente'); return; }
+        const text = `🟢 PROPOSTA STONE - ${clienteNome}
+
+💰 Volume: ${formatCurrency(volumeTotal)}/mês
+📊 Share: Débito ${shares.debit}% | Crédito ${shares.credit}% | PIX ${shares.pix}%
+
+📈 TAXAS STONE:
+• Débito: ${stone.debit}%
+• Crédito 1x: ${stone.credit1x}%
+• Parcelado 2-6x: ${stone.credit2to6}%
+• Parcelado 7-12x: ${stone.credit7to12}%
+• RAV: ${stone.rav}%
+• PIX: ${stone.pix}%
+
+🖥️ Máquinas: ${stoneQtdMaquinas}x ${stoneAluguel === 0 ? '(ISENTO)' : formatCurrency(stoneAluguel) + '/mês'}
+
+💚 ECONOMIA: ${formatCurrency(economy)}/mês = ${formatCurrency(economy * 12)}/ano
+📉 ${economyPercent.toFixed(1)}% mais barato que ${competitorName}
+
+✅ Proposta válida por 30 dias`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    };
+
     const inputClass = "w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm focus:border-[#00A868]/50 focus:ring-1 focus:ring-[#00A868]/30 transition-all";
 
     return (
@@ -261,9 +286,10 @@ export default function PropostaPage() {
                     <h1 className="text-xl font-bold text-white">Nova Proposta Completa</h1>
                     <p className="text-slate-400 text-sm">CET + Comparação + Máquinas - Tudo em um só lugar</p>
                 </div>
-                <div className="flex gap-2">
-                    <button onClick={exportPDF} className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 text-sm rounded-lg flex items-center gap-2">📄 Gerar PDF</button>
-                    <button onClick={exportExcel} className="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 text-sm rounded-lg flex items-center gap-2">📊 Gerar Excel</button>
+                <div className="flex gap-2 flex-wrap">
+                    <button onClick={shareWhatsApp} className="px-4 py-2 bg-green-600/20 hover:bg-green-600/30 text-green-400 text-sm rounded-lg flex items-center gap-2 border border-green-600/30">📱 WhatsApp</button>
+                    <button onClick={exportPDF} className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 text-sm rounded-lg flex items-center gap-2">📄 PDF</button>
+                    <button onClick={exportExcel} className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-sm rounded-lg flex items-center gap-2">📊 Excel</button>
                 </div>
             </div>
 
