@@ -13,7 +13,7 @@ const menuItems = [
     { href: '/dashboard/cet', icon: '📊', label: 'Calculador CET' },
     { href: '/dashboard/comparativo', icon: '⚖️', label: 'Comparação de Taxas' },
     { href: '/dashboard/proposta', icon: '📋', label: 'Nova Proposta' },
-    { href: '/dashboard/simulacoes', icon: '📁', label: 'Minhas Simulações' },
+    { href: '/dashboard/simulacoes', icon: '📁', label: 'Minhas Propostas' },
     { href: '/dashboard/equipe', icon: '👥', label: 'Equipe' },
 ];
 

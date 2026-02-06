@@ -12,28 +12,28 @@ export default function SimulacoesPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-white mb-1">Minhas Simulações</h1>
-                    <p className="text-slate-400 text-sm">Histórico de comparativos realizados</p>
+                    <h1 className="text-2xl font-bold text-white mb-1">Minhas Propostas</h1>
+                    <p className="text-slate-400 text-sm">Histórico de propostas realizadas</p>
                 </div>
                 <a
-                    href="/dashboard/comparativo"
+                    href="/dashboard/proposta"
                     className="px-4 py-2 bg-[#00A868] hover:bg-[#009960] text-white font-medium rounded-xl transition-all"
                 >
-                    + Nova Simulação
+                    + Nova Proposta
                 </a>
             </div>
 
             {/* Empty State */}
             {simulations.length === 0 && (
                 <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-12 text-center">
-                    <div className="text-6xl mb-4">📊</div>
-                    <h3 className="text-xl font-semibold text-white mb-2">Nenhuma simulação salva</h3>
-                    <p className="text-slate-400 mb-6">Crie sua primeira simulação para começar a comparar taxas</p>
+                    <div className="text-6xl mb-4">📋</div>
+                    <h3 className="text-xl font-semibold text-white mb-2">Nenhuma proposta salva</h3>
+                    <p className="text-slate-400 mb-6">Crie sua primeira proposta para começar</p>
                     <a
-                        href="/dashboard/comparativo"
+                        href="/dashboard/proposta"
                         className="inline-block px-6 py-3 bg-[#00A868] hover:bg-[#009960] text-white font-medium rounded-xl transition-all"
                     >
-                        Criar Simulação
+                        Criar Proposta
                     </a>
                 </div>
             )}
