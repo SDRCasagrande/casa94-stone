@@ -10,13 +10,14 @@ interface TeamMember {
     _count: { simulations: number };
 }
 
-// Números WhatsApp da equipe (atualize com os números reais)
+// Números WhatsApp da equipe
 const TEAM_WHATSAPP: Record<string, string> = {
-    'eliel@casa94.com': '5511999999999',
-    'mateus@casa94.com': '5511999999999',
-    'luciana@casa94.com': '5511999999999',
-    'jose@casa94.com': '5511999999999',
-    'nayane@casa94.com': '5511999999999',
+    'luciana@casa94.com': '5594992601150',
+    'jose@casa94.com': '5594992260114',
+    'eliel@casa94.com': '5594992806060',
+    'wilson@casa94.com': '55949992609094',
+    'mateus@casa94.com': '5594992607775',
+    'nayane@casa94.com': '5594992600559',
 };
 
 export default function EquipePage() {

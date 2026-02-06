@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
             { email: 'luciana@casa94.com', name: 'Luciana' },
             { email: 'jose@casa94.com', name: 'José' },
             { email: 'nayane@casa94.com', name: 'Nayane' },
+            { email: 'wilson@casa94.com', name: 'Wilson' },
         ];
 
         const password = await hashPassword('Stone-001');
