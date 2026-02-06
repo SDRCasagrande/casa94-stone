@@ -500,8 +500,8 @@ export default function PropostaPage() {
                         <span className="text-[#00A868] font-bold">🖥️ Máquinas Stone</span>
                         {maquinasIsentas > 0 && (
                             <button onClick={() => { setStoneQtdMaquinas(maquinasIsentas); setStoneAluguel(0); }}
-                                className="px-3 py-1 bg-[#00A868]/30 hover:bg-[#00A868]/50 border border-[#00A868] rounded-lg text-[10px] text-[#00A868] font-medium">
-                                ⚡ Isenção ({maquinasIsentas} máq.)
+                                className="px-4 py-2 bg-[#00A868] hover:bg-[#009960] border-2 border-[#00A868] rounded-xl text-sm text-white font-bold shadow-lg shadow-[#00A868]/30 animate-pulse">
+                                ⚡ ISENÇÃO: {maquinasIsentas} Máquina{maquinasIsentas > 1 ? 's' : ''} Grátis!
                             </button>
                         )}
                     </div>
