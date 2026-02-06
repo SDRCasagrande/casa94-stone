@@ -45,10 +45,29 @@ export default function PropostaPage() {
     const [volumeTotal, setVolumeTotal] = useState(100000);
     const [shares, setShares] = useState({ debit: 30, credit: 50, pix: 20 });
 
-    // === Taxas Stone ===
+    // === Bandeira de Cartão ===
+    const [cardBrand, setCardBrand] = useState<'VISA/MASTER' | 'ELO' | 'AMEX' | 'HIPERCARD' | 'CABAL'>('VISA/MASTER');
+
+    // Taxas por bandeira
+    const BRAND_RATES = {
+        'VISA/MASTER': { debit: 0.84, credit1x: 1.86, credit2to6: 2.18, credit7to12: 2.41, credit13to18: 2.41 },
+        'ELO': { debit: 1.83, credit1x: 2.82, credit2to6: 3.28, credit7to12: 3.76, credit13to18: 3.76 },
+        'AMEX': { debit: 2.50, credit1x: 3.50, credit2to6: 4.00, credit7to12: 4.50, credit13to18: 4.50 },
+        'HIPERCARD': { debit: 1.90, credit1x: 2.90, credit2to6: 3.40, credit7to12: 3.90, credit13to18: 3.90 },
+        'CABAL': { debit: 1.80, credit1x: 2.80, credit2to6: 3.30, credit7to12: 3.80, credit13to18: 3.80 },
+    };
+
+    // === Taxas Stone (vem da bandeira selecionada) ===
     const [stone, setStone] = useState({
         debit: 0.84, credit1x: 1.86, credit2to6: 2.18, credit7to12: 2.41, credit13to18: 2.41, rav: 1.30, pix: 0.75
     });
+
+    // Atualizar taxas quando mudar bandeira
+    const selectBrand = (brand: typeof cardBrand) => {
+        setCardBrand(brand);
+        const rates = BRAND_RATES[brand];
+        setStone(prev => ({ ...prev, ...rates }));
+    };
 
     // === Taxas Concorrente ===
     const [competitorName, setCompetitorName] = useState('Rede');
@@ -190,12 +209,12 @@ export default function PropostaPage() {
             yPos += 6;
         }
 
-        // VISA/MASTER - Taxas horizontais
+        // Bandeira do cartão - Taxas horizontais
         yPos += 6;
         doc.setTextColor(0, 168, 104);
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.text('VISA/MASTER', 15, yPos);
+        doc.text(cardBrand, 15, yPos);
         yPos += 4;
 
         autoTable(doc, {
@@ -380,11 +399,28 @@ export default function PropostaPage() {
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                         <Image src={LOGOS.stone} alt="Stone" width={80} height={24} className="object-contain" />
-                        <h2 className="text-[#00A868] font-bold text-sm">CET Stone (Visa/Master)</h2>
+                        <h2 className="text-[#00A868] font-bold text-sm">CET Stone</h2>
+                        <select
+                            value={cardBrand}
+                            onChange={(e) => selectBrand(e.target.value as typeof cardBrand)}
+                            className="bg-[#00A868] text-white font-bold text-xs px-3 py-1.5 rounded-lg border-0 cursor-pointer"
+                        >
+                            <option value="VISA/MASTER">VISA/MASTER</option>
+                            <option value="ELO">ELO</option>
+                            <option value="AMEX">AMEX</option>
+                            <option value="HIPERCARD">HIPERCARD</option>
+                            <option value="CABAL">CABAL</option>
+                        </select>
                     </div>
                     <div className="flex gap-2">
-                        <Image src={LOGOS.visa} alt="Visa" width={40} height={24} className="object-contain" />
-                        <Image src={LOGOS.master} alt="Master" width={40} height={24} className="object-contain" />
+                        {cardBrand === 'VISA/MASTER' && (
+                            <>
+                                <Image src={LOGOS.visa} alt="Visa" width={40} height={24} className="object-contain" />
+                                <Image src={LOGOS.master} alt="Master" width={40} height={24} className="object-contain" />
+                            </>
+                        )}
+                        {cardBrand === 'ELO' && <Image src={LOGOS.elo} alt="Elo" width={50} height={24} className="object-contain" />}
+                        {cardBrand === 'AMEX' && <Image src={LOGOS.amex} alt="Amex" width={50} height={24} className="object-contain" />}
                     </div>
                 </div>
                 <div className="grid grid-cols-6 gap-2 text-center mb-2">
