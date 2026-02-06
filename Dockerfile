@@ -1,5 +1,5 @@
 # Dockerfile para Next.js no Coolify
-FROM node:20-alpine AS base
+FROM docker.io/library/node:20-alpine AS base
 
 # Instalação de dependências
 FROM base AS deps
