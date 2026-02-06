@@ -118,9 +118,7 @@ export default function DashboardLayout({ children }: Props) {
 
                         <div className="flex items-center gap-2">
                             <ThemeToggle />
-                            <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
-                                🔔
-                            </button>
+
                         </div>
                     </div>
                 </header>
