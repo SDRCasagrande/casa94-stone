@@ -1,17 +1,39 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Image from 'next/image';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
-// Concorrentes
-const COMPETITORS: Record<string, { color: string; debit: number; credit1x: number; credit2to6: number; credit7to12: number; credit13to18: number; rav: number; pix: number }> = {
-    'Rede': { color: '#E53935', debit: 1.50, credit1x: 2.50, credit2to6: 3.00, credit7to12: 3.50, credit13to18: 3.99, rav: 1.50, pix: 1.00 },
-    'Cielo': { color: '#1565C0', debit: 1.49, credit1x: 2.39, credit2to6: 2.99, credit7to12: 3.49, credit13to18: 3.99, rav: 1.49, pix: 0.99 },
-    'PagSeguro': { color: '#F9A825', debit: 1.99, credit1x: 3.19, credit2to6: 3.99, credit7to12: 4.49, credit13to18: 4.99, rav: 1.99, pix: 0.00 },
-    'Getnet': { color: '#E91E63', debit: 1.39, credit1x: 2.49, credit2to6: 3.19, credit7to12: 3.69, credit13to18: 4.19, rav: 1.39, pix: 0.99 },
-    'Outro': { color: '#9E9E9E', debit: 2.00, credit1x: 3.00, credit2to6: 3.50, credit7to12: 4.00, credit13to18: 4.50, rav: 2.00, pix: 1.00 },
+// Logos das empresas
+const LOGOS = {
+    stone: '/logos/Stone_pagamentos.png',
+    rede: '/logos/rede itau.png',
+    cielo: '/logos/logo-cielo-512.png',
+    pagseguro: '/logos/pagseguro.png',
+    mercadopago: '/logos/logo-mercado-pago-512.png',
+    ton: '/logos/ton.png',
+    sumup: '/logos/sumup.png',
+    infinitypay: '/logos/infinitypay.svg',
+    c6: '/logos/logo-c6-bank-512.png',
+    visa: '/logos/visa.png',
+    master: '/logos/master.png',
+    elo: '/logos/elo.png',
+    amex: '/logos/americanexpress.png',
+};
+
+// Concorrentes com logos
+const COMPETITORS: Record<string, { color: string; logo: string; debit: number; credit1x: number; credit2to6: number; credit7to12: number; credit13to18: number; rav: number; pix: number }> = {
+    'Rede': { color: '#E53935', logo: LOGOS.rede, debit: 1.50, credit1x: 2.50, credit2to6: 3.00, credit7to12: 3.50, credit13to18: 3.99, rav: 1.50, pix: 1.00 },
+    'Cielo': { color: '#1565C0', logo: LOGOS.cielo, debit: 1.49, credit1x: 2.39, credit2to6: 2.99, credit7to12: 3.49, credit13to18: 3.99, rav: 1.49, pix: 0.99 },
+    'PagSeguro': { color: '#F9A825', logo: LOGOS.pagseguro, debit: 1.99, credit1x: 3.19, credit2to6: 3.99, credit7to12: 4.49, credit13to18: 4.99, rav: 1.99, pix: 0.00 },
+    'Mercado Pago': { color: '#009EE3', logo: LOGOS.mercadopago, debit: 1.89, credit1x: 2.99, credit2to6: 3.79, credit7to12: 4.29, credit13to18: 4.79, rav: 1.89, pix: 0.00 },
+    'Ton': { color: '#00B900', logo: LOGOS.ton, debit: 1.69, credit1x: 2.79, credit2to6: 3.49, credit7to12: 3.99, credit13to18: 4.49, rav: 1.69, pix: 0.00 },
+    'SumUp': { color: '#1E3F66', logo: LOGOS.sumup, debit: 1.59, credit1x: 2.69, credit2to6: 3.29, credit7to12: 3.79, credit13to18: 4.29, rav: 1.59, pix: 0.00 },
+    'InfinityPay': { color: '#6B5CE7', logo: LOGOS.infinitypay, debit: 0.99, credit1x: 2.49, credit2to6: 3.19, credit7to12: 3.69, credit13to18: 4.19, rav: 1.49, pix: 0.00 },
+    'C6 Bank': { color: '#1A1A1A', logo: LOGOS.c6, debit: 1.29, credit1x: 2.39, credit2to6: 2.99, credit7to12: 3.49, credit13to18: 3.99, rav: 1.29, pix: 0.00 },
+    'Outro': { color: '#9E9E9E', logo: '', debit: 2.00, credit1x: 3.00, credit2to6: 3.50, credit7to12: 4.00, credit13to18: 4.50, rav: 2.00, pix: 1.00 },
 };
 
 export default function PropostaPage() {
@@ -49,21 +71,21 @@ export default function PropostaPage() {
     const creditVolume = volumeTotal * shares.credit / 100;
     const pixVolume = volumeTotal * shares.pix / 100;
 
-    const stoneCosts = useMemo(() => ({
-        debit: debitVolume * stone.debit / 100,
-        credit: creditVolume * stone.credit1x / 100,
-        pix: pixVolume * stone.pix / 100,
-        total: 0, rent: stoneAluguel * stoneQtdMaquinas
-    }), [debitVolume, creditVolume, pixVolume, stone, stoneAluguel, stoneQtdMaquinas]);
-    stoneCosts.total = stoneCosts.debit + stoneCosts.credit + stoneCosts.pix + stoneCosts.rent;
+    const stoneCosts = useMemo(() => {
+        const debit = debitVolume * stone.debit / 100;
+        const credit = creditVolume * stone.credit1x / 100;
+        const pix = pixVolume * stone.pix / 100;
+        const rent = stoneAluguel * stoneQtdMaquinas;
+        return { debit, credit, pix, rent, total: debit + credit + pix + rent };
+    }, [debitVolume, creditVolume, pixVolume, stone, stoneAluguel, stoneQtdMaquinas]);
 
-    const competitorCosts = useMemo(() => ({
-        debit: debitVolume * competitor.debit / 100,
-        credit: creditVolume * competitor.credit1x / 100,
-        pix: pixVolume * competitor.pix / 100,
-        total: 0, rent: competitorAluguel * competitorQtdMaquinas
-    }), [debitVolume, creditVolume, pixVolume, competitor, competitorAluguel, competitorQtdMaquinas]);
-    competitorCosts.total = competitorCosts.debit + competitorCosts.credit + competitorCosts.pix + competitorCosts.rent;
+    const competitorCosts = useMemo(() => {
+        const debit = debitVolume * competitor.debit / 100;
+        const credit = creditVolume * competitor.credit1x / 100;
+        const pix = pixVolume * competitor.pix / 100;
+        const rent = competitorAluguel * competitorQtdMaquinas;
+        return { debit, credit, pix, rent, total: debit + credit + pix + rent };
+    }, [debitVolume, creditVolume, pixVolume, competitor, competitorAluguel, competitorQtdMaquinas]);
 
     const economy = competitorCosts.total - stoneCosts.total;
     const economyPercent = competitorCosts.total > 0 ? (economy / competitorCosts.total) * 100 : 0;
@@ -81,7 +103,8 @@ export default function PropostaPage() {
     // Atualiza concorrente
     const selectCompetitor = (name: string) => {
         setCompetitorName(name);
-        if (COMPETITORS[name]) setCompetitor(COMPETITORS[name]);
+        const c = COMPETITORS[name];
+        if (c) setCompetitor({ debit: c.debit, credit1x: c.credit1x, credit2to6: c.credit2to6, credit7to12: c.credit7to12, credit13to18: c.credit13to18, rav: c.rav, pix: c.pix });
     };
 
     // Calcular diferenças
@@ -95,12 +118,16 @@ export default function PropostaPage() {
         pix: competitor.pix - stone.pix,
     };
 
+    // CET Calculator
+    const calculateCET = (mdr: number, parcelas: number) => {
+        const avgMonths = (1 + parcelas) / 2;
+        const ravFactor = 1 - (stone.rav / 100 * avgMonths);
+        return (1 - ((100 * (1 - mdr / 100)) * ravFactor) / 100) * 100;
+    };
+
     // === EXPORT PDF ===
     const exportPDF = () => {
-        if (!clienteNome.trim()) {
-            alert('Preencha o nome do cliente');
-            return;
-        }
+        if (!clienteNome.trim()) { alert('Preencha o nome do cliente'); return; }
 
         const doc = new jsPDF({ orientation: 'landscape' });
         const pageWidth = doc.internal.pageSize.getWidth();
@@ -109,7 +136,6 @@ export default function PropostaPage() {
         // Header verde Stone
         doc.setFillColor(0, 168, 104);
         doc.rect(0, 0, pageWidth, 35, 'F');
-
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(28);
         doc.setFont('helvetica', 'bold');
@@ -125,145 +151,100 @@ export default function PropostaPage() {
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
         doc.text(clienteNome, 15, 45);
-        if (clienteCNPJ) {
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(9);
-            doc.text(`CNPJ/CPF: ${clienteCNPJ}`, 15, 51);
-        }
+        if (clienteCNPJ) { doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.text(`CNPJ/CPF: ${clienteCNPJ}`, 15, 51); }
 
         // Volume e Share
-        let yPos = 60;
+        let yPos = 58;
         doc.setFontSize(10);
         doc.setTextColor(80, 80, 80);
         doc.text(`Volume Mensal: ${formatCurrency(volumeTotal)}`, 15, yPos);
         doc.text(`Débito: ${shares.debit}% | Crédito: ${shares.credit}% | PIX: ${shares.pix}%`, 100, yPos);
-        yPos += 10;
+        yPos += 8;
 
         // Tabela comparativa de taxas
         autoTable(doc, {
-            startY: yPos,
-            margin: { left: 15 },
-            tableWidth: pageWidth - 30,
+            startY: yPos, margin: { left: 15 }, tableWidth: pageWidth - 30,
             head: [['Taxa', 'Stone', competitorName, 'Diferença']],
             body: [
                 ['Débito', `${stone.debit.toFixed(2)}%`, `${competitor.debit.toFixed(2)}%`, `+${diff.debit.toFixed(2)}%`],
                 ['Crédito à vista', `${stone.credit1x.toFixed(2)}%`, `${competitor.credit1x.toFixed(2)}%`, `+${diff.credit1x.toFixed(2)}%`],
                 ['Parcelado 2-6x', `${stone.credit2to6.toFixed(2)}%`, `${competitor.credit2to6.toFixed(2)}%`, `+${diff.credit2to6.toFixed(2)}%`],
                 ['Parcelado 7-12x', `${stone.credit7to12.toFixed(2)}%`, `${competitor.credit7to12.toFixed(2)}%`, `+${diff.credit7to12.toFixed(2)}%`],
-                ['Parcelado 13-18x', `${stone.credit13to18.toFixed(2)}%`, `${competitor.credit13to18.toFixed(2)}%`, `+${diff.credit13to18.toFixed(2)}%`],
                 ['Antecipação (RAV)', `${stone.rav.toFixed(2)}%`, `${competitor.rav.toFixed(2)}%`, `+${diff.rav.toFixed(2)}%`],
                 ['PIX', `${stone.pix.toFixed(2)}%`, `${competitor.pix.toFixed(2)}%`, `+${diff.pix.toFixed(2)}%`],
             ],
             theme: 'grid',
             headStyles: { fillColor: [0, 168, 104], textColor: [255, 255, 255], fontSize: 9 },
             bodyStyles: { fontSize: 9 },
-            columnStyles: {
-                0: { cellWidth: 50 },
-                1: { halign: 'center', fontStyle: 'bold' },
-                2: { halign: 'center' },
-                3: { halign: 'center', textColor: [0, 168, 104] }
-            },
+            columnStyles: { 1: { halign: 'center', fontStyle: 'bold' }, 2: { halign: 'center' }, 3: { halign: 'center', textColor: [0, 168, 104] } },
         });
-
-        yPos = (doc as any).lastAutoTable.finalY + 10;
+        yPos = (doc as any).lastAutoTable.finalY + 8;
 
         // Máquinas
         autoTable(doc, {
-            startY: yPos,
-            margin: { left: 15 },
-            tableWidth: 180,
+            startY: yPos, margin: { left: 15 }, tableWidth: 180,
             head: [['Máquinas', 'Stone', competitorName]],
             body: [
                 ['Quantidade', stoneQtdMaquinas.toString(), competitorQtdMaquinas.toString()],
                 ['Aluguel/mês', stoneAluguel === 0 ? 'ISENTO' : formatCurrency(stoneCosts.rent), formatCurrency(competitorCosts.rent)],
             ],
-            theme: 'grid',
-            headStyles: { fillColor: [100, 100, 100], fontSize: 9 },
-            bodyStyles: { fontSize: 9 },
+            theme: 'grid', headStyles: { fillColor: [100, 100, 100], fontSize: 9 }, bodyStyles: { fontSize: 9 },
         });
-
-        yPos = (doc as any).lastAutoTable.finalY + 10;
+        yPos = (doc as any).lastAutoTable.finalY + 8;
 
         // Custos totais
         autoTable(doc, {
-            startY: yPos,
-            margin: { left: 15 },
-            tableWidth: pageWidth - 30,
+            startY: yPos, margin: { left: 15 }, tableWidth: pageWidth - 30,
             head: [['Custos Mensais', 'Stone', competitorName, 'Economia']],
             body: [
                 ['Taxas', formatCurrency(stoneCosts.debit + stoneCosts.credit + stoneCosts.pix), formatCurrency(competitorCosts.debit + competitorCosts.credit + competitorCosts.pix), ''],
                 ['Aluguel Máquinas', formatCurrency(stoneCosts.rent), formatCurrency(competitorCosts.rent), ''],
                 ['TOTAL', formatCurrency(stoneCosts.total), formatCurrency(competitorCosts.total), formatCurrency(economy)],
             ],
-            theme: 'grid',
-            headStyles: { fillColor: [0, 168, 104], fontSize: 9 },
-            bodyStyles: { fontSize: 9 },
+            theme: 'grid', headStyles: { fillColor: [0, 168, 104], fontSize: 9 }, bodyStyles: { fontSize: 9 },
             columnStyles: { 3: { textColor: [0, 168, 104], fontStyle: 'bold' } },
         });
-
-        yPos = (doc as any).lastAutoTable.finalY + 15;
+        yPos = (doc as any).lastAutoTable.finalY + 10;
 
         // Economia destaque
         if (economy > 0) {
             doc.setFillColor(0, 168, 104);
-            doc.roundedRect(15, yPos, pageWidth - 30, 25, 3, 3, 'F');
+            doc.roundedRect(15, yPos, pageWidth - 30, 22, 3, 3, 'F');
             doc.setTextColor(255, 255, 255);
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
-            doc.text('ECONOMIA COM STONE', 25, yPos + 10);
-            doc.setFontSize(18);
-            doc.text(`${formatCurrency(economy)}/mês`, pageWidth / 2, yPos + 14, { align: 'center' });
+            doc.text('ECONOMIA COM STONE', 25, yPos + 9);
+            doc.setFontSize(16);
+            doc.text(`${formatCurrency(economy)}/mês`, pageWidth / 2, yPos + 12, { align: 'center' });
             doc.setFontSize(10);
-            doc.text(`${formatCurrency(economy * 12)}/ano`, pageWidth / 2, yPos + 21, { align: 'center' });
-            doc.text(`${economyPercent.toFixed(1)}% mais barato`, pageWidth - 25, yPos + 15, { align: 'right' });
+            doc.text(`${formatCurrency(economy * 12)}/ano`, pageWidth / 2, yPos + 19, { align: 'center' });
+            doc.text(`${economyPercent.toFixed(1)}% mais barato`, pageWidth - 25, yPos + 14, { align: 'right' });
         }
 
-        // Rodapé
         doc.setFontSize(8);
         doc.setTextColor(120, 120, 120);
         doc.text('Proposta Stone - Válida por 30 dias', pageWidth - 15, pageHeight - 8, { align: 'right' });
-
         doc.save(`Proposta_${clienteNome.replace(/\s+/g, '_')}.pdf`);
     };
 
     // === EXPORT EXCEL ===
     const exportExcel = () => {
-        if (!clienteNome.trim()) {
-            alert('Preencha o nome do cliente');
-            return;
-        }
-
+        if (!clienteNome.trim()) { alert('Preencha o nome do cliente'); return; }
         const data = [
-            ['STONE - PROPOSTA COMERCIAL'],
-            [''],
-            ['Cliente:', clienteNome],
-            clienteCNPJ ? ['CNPJ/CPF:', clienteCNPJ] : [],
-            ['Data:', new Date().toLocaleDateString('pt-BR')],
-            ['Volume Mensal:', formatCurrency(volumeTotal)],
-            ['Distribuição:', `Débito ${shares.debit}% | Crédito ${shares.credit}% | PIX ${shares.pix}%`],
-            [''],
-            ['TAXAS', 'Stone', competitorName, 'Diferença'],
+            ['STONE - PROPOSTA COMERCIAL'], [''], ['Cliente:', clienteNome],
+            clienteCNPJ ? ['CNPJ/CPF:', clienteCNPJ] : [], ['Data:', new Date().toLocaleDateString('pt-BR')],
+            ['Volume Mensal:', formatCurrency(volumeTotal)], [''], ['TAXAS', 'Stone', competitorName, 'Diferença'],
             ['Débito', `${stone.debit}%`, `${competitor.debit}%`, `${diff.debit.toFixed(2)}%`],
             ['Crédito 1x', `${stone.credit1x}%`, `${competitor.credit1x}%`, `${diff.credit1x.toFixed(2)}%`],
             ['2-6x', `${stone.credit2to6}%`, `${competitor.credit2to6}%`, `${diff.credit2to6.toFixed(2)}%`],
             ['7-12x', `${stone.credit7to12}%`, `${competitor.credit7to12}%`, `${diff.credit7to12.toFixed(2)}%`],
-            ['13-18x', `${stone.credit13to18}%`, `${competitor.credit13to18}%`, `${diff.credit13to18.toFixed(2)}%`],
             ['RAV', `${stone.rav}%`, `${competitor.rav}%`, `${diff.rav.toFixed(2)}%`],
             ['PIX', `${stone.pix}%`, `${competitor.pix}%`, `${diff.pix.toFixed(2)}%`],
-            [''],
-            ['MÁQUINAS', 'Stone', competitorName],
+            [''], ['MÁQUINAS', 'Stone', competitorName],
             ['Quantidade', stoneQtdMaquinas, competitorQtdMaquinas],
             ['Aluguel/mês', stoneAluguel === 0 ? 'ISENTO' : stoneCosts.rent, competitorCosts.rent],
-            [''],
-            ['CUSTOS', 'Stone', competitorName],
-            ['Taxas', stoneCosts.debit + stoneCosts.credit + stoneCosts.pix, competitorCosts.debit + competitorCosts.credit + competitorCosts.pix],
-            ['Aluguel', stoneCosts.rent, competitorCosts.rent],
-            ['TOTAL', stoneCosts.total, competitorCosts.total],
-            [''],
-            ['ECONOMIA MENSAL', formatCurrency(economy)],
-            ['ECONOMIA ANUAL', formatCurrency(economy * 12)],
+            [''], ['ECONOMIA MENSAL', formatCurrency(economy)], ['ECONOMIA ANUAL', formatCurrency(economy * 12)],
         ].filter(r => r.length > 0);
-
         const ws = XLSX.utils.aoa_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Proposta');
@@ -277,63 +258,82 @@ export default function PropostaPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-xl font-bold text-white">Nova Proposta</h1>
-                    <p className="text-slate-400 text-sm">Preencha todos os dados e gere a proposta completa</p>
+                    <h1 className="text-xl font-bold text-white">Nova Proposta Completa</h1>
+                    <p className="text-slate-400 text-sm">CET + Comparação + Máquinas - Tudo em um só lugar</p>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={exportPDF} className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 text-sm rounded-lg flex items-center gap-2">
-                        📄 PDF
-                    </button>
-                    <button onClick={exportExcel} className="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 text-sm rounded-lg flex items-center gap-2">
-                        📊 Excel
-                    </button>
+                    <button onClick={exportPDF} className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 text-sm rounded-lg flex items-center gap-2">📄 Gerar PDF</button>
+                    <button onClick={exportExcel} className="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 text-sm rounded-lg flex items-center gap-2">📊 Gerar Excel</button>
                 </div>
             </div>
 
             {/* Cliente + Volume */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Dados do Cliente */}
                 <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-4">
-                    <h2 className="text-white font-semibold text-sm mb-3">👤 Dados do Cliente</h2>
+                    <h2 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">👤 Dados do Cliente</h2>
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="text-[10px] text-slate-500 block mb-1">Nome / Razão Social *</label>
-                            <input type="text" value={clienteNome} onChange={(e) => setClienteNome(e.target.value)}
-                                placeholder="Nome completo" className={inputClass} />
+                            <input type="text" value={clienteNome} onChange={(e) => setClienteNome(e.target.value)} placeholder="Nome completo" className={inputClass} />
                         </div>
                         <div>
                             <label className="text-[10px] text-slate-500 block mb-1">CNPJ / CPF</label>
-                            <input type="text" value={clienteCNPJ} onChange={(e) => setClienteCNPJ(e.target.value)}
-                                placeholder="00.000.000/0000-00" className={inputClass} />
+                            <input type="text" value={clienteCNPJ} onChange={(e) => setClienteCNPJ(e.target.value)} placeholder="00.000.000/0000-00" className={inputClass} />
                         </div>
                     </div>
                 </div>
 
-                {/* Volume e Share */}
                 <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-4">
                     <h2 className="text-white font-semibold text-sm mb-3">💰 Volume Mensal (TPV)</h2>
                     <div className="grid grid-cols-4 gap-3">
                         <div>
                             <label className="text-[10px] text-slate-500 block mb-1">Volume Total</label>
-                            <input type="number" value={volumeTotal} onChange={(e) => setVolumeTotal(Number(e.target.value))}
-                                className={inputClass + " text-[#00A868] font-bold"} />
+                            <input type="number" value={volumeTotal} onChange={(e) => setVolumeTotal(Number(e.target.value))} className={inputClass + " text-[#00A868] font-bold"} />
                         </div>
                         <div>
                             <label className="text-[10px] text-slate-500 block mb-1">Débito %</label>
-                            <input type="number" value={shares.debit} onChange={(e) => setShares({ ...shares, debit: Number(e.target.value) })}
-                                className={inputClass + " text-center"} />
+                            <input type="number" value={shares.debit} onChange={(e) => setShares({ ...shares, debit: Number(e.target.value) })} className={inputClass + " text-center"} />
                         </div>
                         <div>
                             <label className="text-[10px] text-slate-500 block mb-1">Crédito %</label>
-                            <input type="number" value={shares.credit} onChange={(e) => setShares({ ...shares, credit: Number(e.target.value) })}
-                                className={inputClass + " text-center"} />
+                            <input type="number" value={shares.credit} onChange={(e) => setShares({ ...shares, credit: Number(e.target.value) })} className={inputClass + " text-center"} />
                         </div>
                         <div>
                             <label className="text-[10px] text-slate-500 block mb-1">PIX %</label>
-                            <input type="number" value={shares.pix} onChange={(e) => setShares({ ...shares, pix: Number(e.target.value) })}
-                                className={inputClass + " text-center"} />
+                            <input type="number" value={shares.pix} onChange={(e) => setShares({ ...shares, pix: Number(e.target.value) })} className={inputClass + " text-center"} />
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* CET Stone - 3 colunas de parcelas */}
+            <div className="bg-slate-900/50 border border-[#00A868]/40 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <Image src={LOGOS.stone} alt="Stone" width={80} height={24} className="object-contain" />
+                        <h2 className="text-[#00A868] font-bold text-sm">CET Stone (Visa/Master)</h2>
+                    </div>
+                    <div className="flex gap-2">
+                        <Image src={LOGOS.visa} alt="Visa" width={40} height={24} className="object-contain" />
+                        <Image src={LOGOS.master} alt="Master" width={40} height={24} className="object-contain" />
+                    </div>
+                </div>
+                <div className="grid grid-cols-6 gap-2 text-center mb-2">
+                    <span className="text-xs text-slate-400">Parc.</span><span className="text-xs text-[#00A868] font-bold">CET</span>
+                    <span className="text-xs text-slate-400">Parc.</span><span className="text-xs text-[#00A868] font-bold">CET</span>
+                    <span className="text-xs text-slate-400">Parc.</span><span className="text-xs text-[#00A868] font-bold">CET</span>
+                </div>
+                <div className="grid grid-cols-6 gap-2 text-center">
+                    {[1, 2, 3, 4, 5, 6].map(i => {
+                        const mdr = i === 1 ? stone.credit1x : stone.credit2to6;
+                        return (<><span key={`p${i}`} className="text-xs text-white">{i}x</span><span key={`c${i}`} className="text-xs text-[#00A868] font-bold">{calculateCET(mdr, i).toFixed(2)}%</span></>);
+                    })}
+                </div>
+                <div className="grid grid-cols-6 gap-2 text-center mt-1">
+                    {[7, 8, 9, 10, 11, 12].map(i => {
+                        const mdr = stone.credit7to12;
+                        return (<><span key={`p${i}`} className="text-xs text-white">{i}x</span><span key={`c${i}`} className="text-xs text-[#00A868] font-bold">{calculateCET(mdr, i).toFixed(2)}%</span></>);
+                    })}
                 </div>
             </div>
 
@@ -341,23 +341,14 @@ export default function PropostaPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Stone */}
                 <div className="bg-slate-900/50 border border-[#00A868]/40 rounded-xl overflow-hidden">
-                    <div className="bg-[#00A868]/20 px-4 py-2 border-b border-[#00A868]/30">
-                        <span className="text-[#00A868] font-bold">Stone</span>
+                    <div className="bg-[#00A868]/20 px-4 py-2 border-b border-[#00A868]/30 flex items-center gap-2">
+                        <Image src={LOGOS.stone} alt="Stone" width={60} height={20} className="object-contain" />
                     </div>
                     <div className="p-4 space-y-2">
-                        {[
-                            { label: 'Débito', key: 'debit' },
-                            { label: 'Crédito 1x', key: 'credit1x' },
-                            { label: '2-6x', key: 'credit2to6' },
-                            { label: '7-12x', key: 'credit7to12' },
-                            { label: '13-18x', key: 'credit13to18' },
-                            { label: 'RAV', key: 'rav' },
-                            { label: 'PIX', key: 'pix' },
-                        ].map(({ label, key }) => (
-                            <div key={key} className="flex items-center justify-between">
+                        {[{ label: 'Débito', k: 'debit' }, { label: 'Crédito 1x', k: 'credit1x' }, { label: '2-6x', k: 'credit2to6' }, { label: '7-12x', k: 'credit7to12' }, { label: '13-18x', k: 'credit13to18' }, { label: 'RAV', k: 'rav' }, { label: 'PIX', k: 'pix' }].map(({ label, k }) => (
+                            <div key={k} className="flex items-center justify-between">
                                 <span className="text-xs text-slate-400">{label}</span>
-                                <input type="number" step="0.01" value={stone[key as keyof typeof stone]}
-                                    onChange={(e) => setStone({ ...stone, [key]: Number(e.target.value) })}
+                                <input type="number" step="0.01" value={stone[k as keyof typeof stone]} onChange={(e) => setStone({ ...stone, [k]: Number(e.target.value) })}
                                     className="w-20 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-[#00A868] text-xs text-center font-bold" />
                             </div>
                         ))}
@@ -366,26 +357,17 @@ export default function PropostaPage() {
 
                 {/* Concorrente */}
                 <div className="bg-slate-900/50 border border-red-500/40 rounded-xl overflow-hidden">
-                    <div className="bg-red-500/20 px-4 py-2 border-b border-red-500/30 flex items-center justify-between">
-                        <select value={competitorName} onChange={(e) => selectCompetitor(e.target.value)}
-                            className="bg-transparent text-red-400 font-bold text-sm border-0 focus:ring-0">
+                    <div className="bg-red-500/20 px-4 py-2 border-b border-red-500/30 flex items-center gap-3">
+                        {COMPETITORS[competitorName]?.logo && <Image src={COMPETITORS[competitorName].logo} alt={competitorName} width={50} height={20} className="object-contain" />}
+                        <select value={competitorName} onChange={(e) => selectCompetitor(e.target.value)} className="bg-transparent text-red-400 font-bold text-sm border-0 focus:ring-0 flex-1">
                             {Object.keys(COMPETITORS).map(c => <option key={c} value={c} className="text-black">{c}</option>)}
                         </select>
                     </div>
                     <div className="p-4 space-y-2">
-                        {[
-                            { label: 'Débito', key: 'debit' },
-                            { label: 'Crédito 1x', key: 'credit1x' },
-                            { label: '2-6x', key: 'credit2to6' },
-                            { label: '7-12x', key: 'credit7to12' },
-                            { label: '13-18x', key: 'credit13to18' },
-                            { label: 'RAV', key: 'rav' },
-                            { label: 'PIX', key: 'pix' },
-                        ].map(({ label, key }) => (
-                            <div key={key} className="flex items-center justify-between">
+                        {[{ label: 'Débito', k: 'debit' }, { label: 'Crédito 1x', k: 'credit1x' }, { label: '2-6x', k: 'credit2to6' }, { label: '7-12x', k: 'credit7to12' }, { label: '13-18x', k: 'credit13to18' }, { label: 'RAV', k: 'rav' }, { label: 'PIX', k: 'pix' }].map(({ label, k }) => (
+                            <div key={k} className="flex items-center justify-between">
                                 <span className="text-xs text-slate-400">{label}</span>
-                                <input type="number" step="0.01" value={competitor[key as keyof typeof competitor]}
-                                    onChange={(e) => setCompetitor({ ...competitor, [key]: Number(e.target.value) })}
+                                <input type="number" step="0.01" value={competitor[k as keyof typeof competitor]} onChange={(e) => setCompetitor({ ...competitor, [k]: Number(e.target.value) })}
                                     className="w-20 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-red-400 text-xs text-center font-bold" />
                             </div>
                         ))}
@@ -394,24 +376,12 @@ export default function PropostaPage() {
 
                 {/* Diferença */}
                 <div className="bg-slate-900/50 border border-slate-700 rounded-xl overflow-hidden">
-                    <div className="bg-slate-800/50 px-4 py-2 border-b border-slate-700">
-                        <span className="text-white font-bold">Diferença</span>
-                    </div>
+                    <div className="bg-slate-800/50 px-4 py-2 border-b border-slate-700"><span className="text-white font-bold">Diferença</span></div>
                     <div className="p-4 space-y-2">
-                        {[
-                            { label: 'Débito', value: diff.debit },
-                            { label: 'Crédito 1x', value: diff.credit1x },
-                            { label: '2-6x', value: diff.credit2to6 },
-                            { label: '7-12x', value: diff.credit7to12 },
-                            { label: '13-18x', value: diff.credit13to18 },
-                            { label: 'RAV', value: diff.rav },
-                            { label: 'PIX', value: diff.pix },
-                        ].map(({ label, value }) => (
+                        {[{ label: 'Débito', v: diff.debit }, { label: 'Crédito 1x', v: diff.credit1x }, { label: '2-6x', v: diff.credit2to6 }, { label: '7-12x', v: diff.credit7to12 }, { label: '13-18x', v: diff.credit13to18 }, { label: 'RAV', v: diff.rav }, { label: 'PIX', v: diff.pix }].map(({ label, v }) => (
                             <div key={label} className="flex items-center justify-between">
                                 <span className="text-xs text-slate-400">{label}</span>
-                                <span className={`text-xs font-bold ${value > 0 ? 'text-[#00A868]' : 'text-red-400'}`}>
-                                    {value > 0 ? '+' : ''}{value.toFixed(2)}%
-                                </span>
+                                <span className={`text-xs font-bold ${v > 0 ? 'text-[#00A868]' : 'text-red-400'}`}>{v > 0 ? '+' : ''}{v.toFixed(2)}%</span>
                             </div>
                         ))}
                     </div>
@@ -420,28 +390,19 @@ export default function PropostaPage() {
 
             {/* Máquinas */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Stone */}
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#00A868]/20 via-slate-900/80 to-slate-900/90 border border-[#00A868]/40 p-4">
+                <div className="bg-[#00A868]/10 border border-[#00A868]/40 rounded-xl p-4">
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-[#00A868] font-bold">🖥️ Máquinas Stone</span>
                         {maquinasIsentas > 0 && (
                             <button onClick={() => { setStoneQtdMaquinas(maquinasIsentas); setStoneAluguel(0); }}
-                                className="px-3 py-1 bg-[#00A868]/30 hover:bg-[#00A868]/50 border border-[#00A868]/50 rounded-lg text-[10px] text-[#00A868] font-medium">
+                                className="px-3 py-1 bg-[#00A868]/30 hover:bg-[#00A868]/50 border border-[#00A868] rounded-lg text-[10px] text-[#00A868] font-medium">
                                 ⚡ Isenção ({maquinasIsentas} máq.)
                             </button>
                         )}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-[10px] text-slate-500 block mb-1">Quantidade</label>
-                            <input type="number" min="1" value={stoneQtdMaquinas} onChange={(e) => setStoneQtdMaquinas(Number(e.target.value))}
-                                className={inputClass + " text-center"} />
-                        </div>
-                        <div>
-                            <label className="text-[10px] text-slate-500 block mb-1">Aluguel/mês</label>
-                            <input type="number" step="0.01" value={stoneAluguel} onChange={(e) => setStoneAluguel(Number(e.target.value))}
-                                className={inputClass + " text-center text-[#00A868]"} />
-                        </div>
+                        <div><label className="text-[10px] text-slate-500 block mb-1">Quantidade</label><input type="number" min="1" value={stoneQtdMaquinas} onChange={(e) => setStoneQtdMaquinas(Number(e.target.value))} className={inputClass + " text-center"} /></div>
+                        <div><label className="text-[10px] text-slate-500 block mb-1">Aluguel/mês</label><input type="number" step="0.01" value={stoneAluguel} onChange={(e) => setStoneAluguel(Number(e.target.value))} className={inputClass + " text-center text-[#00A868]"} /></div>
                     </div>
                     <div className="mt-3 flex items-center justify-between">
                         <span className="text-xs text-slate-400">Total:</span>
@@ -452,20 +413,11 @@ export default function PropostaPage() {
                     </div>
                 </div>
 
-                {/* Concorrente */}
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-500/10 via-slate-900/80 to-slate-900/90 border border-red-500/40 p-4">
+                <div className="bg-red-500/10 border border-red-500/40 rounded-xl p-4">
                     <span className="text-red-400 font-bold mb-3 block">🖥️ Máquinas {competitorName}</span>
                     <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-[10px] text-slate-500 block mb-1">Quantidade</label>
-                            <input type="number" min="1" value={competitorQtdMaquinas} onChange={(e) => setCompetitorQtdMaquinas(Number(e.target.value))}
-                                className={inputClass + " text-center"} />
-                        </div>
-                        <div>
-                            <label className="text-[10px] text-slate-500 block mb-1">Aluguel/mês</label>
-                            <input type="number" step="0.01" value={competitorAluguel} onChange={(e) => setCompetitorAluguel(Number(e.target.value))}
-                                className={inputClass + " text-center text-red-400"} />
-                        </div>
+                        <div><label className="text-[10px] text-slate-500 block mb-1">Quantidade</label><input type="number" min="1" value={competitorQtdMaquinas} onChange={(e) => setCompetitorQtdMaquinas(Number(e.target.value))} className={inputClass + " text-center"} /></div>
+                        <div><label className="text-[10px] text-slate-500 block mb-1">Aluguel/mês</label><input type="number" step="0.01" value={competitorAluguel} onChange={(e) => setCompetitorAluguel(Number(e.target.value))} className={inputClass + " text-center text-red-400"} /></div>
                     </div>
                     <div className="mt-3 flex items-center justify-between">
                         <span className="text-xs text-slate-400">Total:</span>
@@ -490,10 +442,9 @@ export default function PropostaPage() {
                 </div>
                 <div className={`rounded-xl p-4 text-center ${economy > 0 ? 'bg-[#00A868]/20 border border-[#00A868]' : 'bg-amber-500/20 border border-amber-500'}`}>
                     <span className="text-xs text-slate-400 block mb-1">💰 Economia Mensal</span>
-                    <span className={`text-3xl font-bold ${economy > 0 ? 'text-[#00A868]' : 'text-amber-400'}`}>
-                        {economy > 0 ? '+' : ''}{formatCurrency(economy)}
-                    </span>
+                    <span className={`text-3xl font-bold ${economy > 0 ? 'text-[#00A868]' : 'text-amber-400'}`}>{economy > 0 ? '+' : ''}{formatCurrency(economy)}</span>
                     <span className="text-sm text-slate-400 block">{economyPercent.toFixed(1)}% mais barato</span>
+                    <span className="text-xs text-slate-500 block mt-1">{formatCurrency(economy * 12)}/ano</span>
                 </div>
             </div>
         </div>
