@@ -29,6 +29,9 @@ const DEFAULT_BRANDS = [
 export default function CETCalculator() {
     // Estado do Contrato
     const [contractType, setContractType] = useState<'fidelity' | 'adhesion'>('fidelity');
+    const [ravRate, setRavRate] = useState<number>(1.30);
+    const [containers, setContainers] = useState(DEFAULT_BRANDS);
+    const [isLoaded, setIsLoaded] = useState(false);
 
     // Carregar dados salvos ao iniciar (Mantido)
     useEffect(() => {
