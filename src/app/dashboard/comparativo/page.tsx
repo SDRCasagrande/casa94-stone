@@ -267,6 +267,8 @@ export default function ComparativoPage() {
         ));
     };
 
+    const [contractType, setContractType] = useState<'fidelity' | 'adhesion'>('fidelity');
+
     // Export PDF - Paisagem, profissional com prompt de cliente
     const exportPDF = () => {
         // Prompt para dados do cliente
@@ -297,18 +299,77 @@ export default function ComparativoPage() {
         doc.setFontSize(10);
         doc.text(new Date().toLocaleDateString('pt-BR'), pageWidth - 15, 15, { align: 'right' });
 
-        // Dados do cliente abaixo do header
+        // === QUADRINHOS INFORMATIVOS (Abaixo do Header, Lado Esquerdo) ===
+        // Box 1: Taxa de Antecipação
+        doc.setFillColor(240, 253, 244); // Fundo claro verde
+        doc.setDrawColor(0, 168, 104); // Borda verde
+        doc.rect(15, 45, 60, 22, 'FD');
+
+        doc.setFontSize(8);
+        doc.setTextColor(0, 168, 104);
+        doc.setFont('helvetica', 'bold');
+        doc.text('TAXA DE ANTECIPAÇÃO', 45, 50, { align: 'center' });
+
+        doc.setFontSize(14);
+        doc.setTextColor(50, 50, 50);
+        doc.text(`${stoneSimple.rav.toFixed(2)}%`, 45, 60, { align: 'center' });
+
+        // Box 2: Regras de Contrato / Isenção
+        doc.setFillColor(248, 250, 252); // Fundo cinza claro
+        doc.setDrawColor(148, 163, 184); // Borda cinza
+        doc.rect(80, 45, 120, 22, 'FD');
+
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105);
+        doc.setFont('helvetica', 'bold');
+
+        const contractLabel = contractType === 'fidelity' ? 'FIDELIDADE 13 MESES' : 'TERMO DE ADESÃO';
+        doc.text(contractLabel, 140, 50, { align: 'center' });
+
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(50, 50, 50);
+
+        // Lógica de texto baseada no contrato e TPV
+        const tpv = mode === 'simple' ? volumeTotal : advancedTotalVolume;
+        let machineText = '';
+
+        if (contractType === 'fidelity') {
+            doc.text('(Primeiro mês isento)', 140, 54, { align: 'center' });
+
+            // Regra TPV
+            let maquinasIsentas = 0;
+            if (tpv >= 10000 && tpv < 30000) maquinasIsentas = 1;
+            else if (tpv >= 30000 && tpv < 50000) maquinasIsentas = 2;
+            else if (tpv >= 50000 && tpv < 100000) maquinasIsentas = 4;
+            else if (tpv >= 100000) maquinasIsentas = 4 + Math.floor((tpv - 50000) / 50000) * 2;
+
+            machineText = `Isenção por TPV: 10k(1), 30k(2), 50k(4) e +2 a cada 50k.`;
+            doc.text(machineText, 140, 60, { align: 'center' });
+            doc.text(`Volume atual (${formatCurrency(tpv)}): ${maquinasIsentas} maq. isenta(s).`, 140, 64, { align: 'center' });
+        } else {
+            // Adesão
+            doc.text('R$ 478,80', 140, 54, { align: 'center' });
+            if (stoneQtdMaquinas > 1) {
+                doc.text('Isenção aplicada (Mais de 1 máquina no termo de adesão)', 140, 60, { align: 'center' });
+            } else {
+                doc.text('1 Adesão. (Isenção aplica-se se houver > 1 máquina)', 140, 60, { align: 'center' });
+            }
+        }
+
+        // Dados do cliente (Ajustado posição)
+        const clientY = 75;
         doc.setTextColor(50, 50, 50);
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
-        doc.text(clienteNome, 15, 50);
+        doc.text(clienteNome, 15, clientY);
         if (clienteCNPJ) {
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(10);
-            doc.text(`CNPJ/CPF: ${clienteCNPJ}`, 15, 56);
+            doc.text(`CNPJ/CPF: ${clienteCNPJ}`, 15, clientY + 5);
         }
 
-        let yPos = clienteCNPJ ? 68 : 62;
+        let yPos = clientY + 12;
 
         // Info de volume
         doc.setFontSize(10);
@@ -382,11 +443,7 @@ export default function ComparativoPage() {
             doc.text(`${economyPercent.toFixed(1)}% mais barato`, pageWidth - 25, yPos + 18, { align: 'right' });
         }
 
-        // Rodapé
-        doc.setFontSize(9);
-        doc.setTextColor(120, 120, 120);
-        doc.text('Proposta Stone - Válida por 30 dias', pageWidth - 15, pageHeight - 10, { align: 'right' });
-
+        // Rodapé removido conforme solicitado ("tire eses PROPOSTA VALIDA")
         doc.save(`Proposta_${clienteNome.replace(/\s+/g, '_')}_Comparativo.pdf`);
     };
 
@@ -403,6 +460,7 @@ export default function ComparativoPage() {
             clienteCNPJ ? ['CNPJ/CPF:', clienteCNPJ] : [],
             ['Data:', new Date().toLocaleDateString('pt-BR')],
             ['Volume Mensal:', formatCurrency(volumeTotal)],
+            ['Contrato:', contractType === 'fidelity' ? 'Fidelidade 13 meses' : 'Adesão'],
             [''],
             ['Taxa', 'Stone', competitorName, 'Diferença'],
             ['Débito', `${stoneSimple.debit}%`, `${competitorSimple.debit}%`, `${(competitorSimple.debit - stoneSimple.debit).toFixed(2)}%`],
@@ -424,25 +482,36 @@ export default function ComparativoPage() {
     return (
         <div className="space-y-4">
             {/* Header */}
+            {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-xl font-bold text-white">Comparação de Taxas</h1>
-                    <p className="text-slate-400 text-sm">Stone vs Concorrente</p>
+                    <h1 className="text-xl font-bold text-slate-800 dark:text-white">Comparação de Taxas</h1>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">Stone vs Concorrente</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
+                    {/* Contract Toggle */}
+                    <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 mr-2">
+                        <button onClick={() => setContractType('fidelity')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${contractType === 'fidelity' ? 'bg-purple-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
+                            Fidelidade 13m
+                        </button>
+                        <button onClick={() => setContractType('adhesion')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${contractType === 'adhesion' ? 'bg-orange-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
+                            Adesão
+                        </button>
+                    </div>
+
                     {/* Mode Toggle */}
-                    <div className="flex bg-slate-800 rounded-lg p-0.5">
-                        <button onClick={() => setMode('simple')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${mode === 'simple' ? 'bg-[#00A868] text-white' : 'text-slate-400 hover:text-white'}`}>
+                    <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+                        <button onClick={() => setMode('simple')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${mode === 'simple' ? 'bg-[#00A868] text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
                             Simples
                         </button>
-                        <button onClick={() => setMode('advanced')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${mode === 'advanced' ? 'bg-[#00A868] text-white' : 'text-slate-400 hover:text-white'}`}>
+                        <button onClick={() => setMode('advanced')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${mode === 'advanced' ? 'bg-[#00A868] text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
                             Avançado
                         </button>
                     </div>
-                    <button onClick={resetAll} className="px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 text-slate-300 text-xs rounded-lg">🔄 Limpar</button>
-                    <button onClick={pullFromCET} className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-xs rounded-lg">📡 Puxar CET</button>
-                    <button onClick={exportPDF} className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs rounded-lg">📄 PDF</button>
-                    <button onClick={exportExcel} className="px-3 py-1.5 bg-green-500/20 hover:bg-green-500/30 text-green-300 text-xs rounded-lg">📊 Excel</button>
+                    <button onClick={resetAll} className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs rounded-lg">🔄 Limpar</button>
+                    <button onClick={pullFromCET} className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 text-blue-600 dark:text-blue-300 text-xs rounded-lg">📡 Puxar CET</button>
+                    <button onClick={exportPDF} className="px-3 py-1.5 bg-red-100 hover:bg-red-200 dark:bg-red-500/20 dark:hover:bg-red-500/30 text-red-600 dark:text-red-300 text-xs rounded-lg">📄 PDF</button>
+                    <button onClick={exportExcel} className="px-3 py-1.5 bg-green-100 hover:bg-green-200 dark:bg-green-500/20 dark:hover:bg-green-500/30 text-green-600 dark:text-green-300 text-xs rounded-lg">📊 Excel</button>
                 </div>
             </div>
 
@@ -450,58 +519,58 @@ export default function ComparativoPage() {
             {mode === 'simple' && (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                     {/* TPV */}
-                    <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-2">
+                    <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg p-2 shadow-sm">
                         <label className="text-[10px] text-slate-500">TPV Total</label>
                         <input type="number" value={volumeTotal} onChange={(e) => setVolumeTotal(Number(e.target.value))}
-                            className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white text-sm mt-1" />
+                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-slate-900 dark:text-white text-sm mt-1 focus:ring-1 focus:ring-[#00A868]" />
                         <div className="grid grid-cols-3 gap-1 mt-1">
                             <div>
                                 <label className="text-[8px] text-slate-500">Déb</label>
                                 <input type="number" value={volumeDebit} onChange={(e) => setVolumeDebit(Number(e.target.value))}
-                                    className="w-full bg-slate-800/50 border border-slate-700 rounded px-1 py-0.5 text-white text-[10px] text-center" />
+                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded px-1 py-0.5 text-slate-600 dark:text-white text-[10px] text-center" />
                             </div>
                             <div>
                                 <label className="text-[8px] text-slate-500">Créd</label>
                                 <input type="number" value={volumeCredit} onChange={(e) => setVolumeCredit(Number(e.target.value))}
-                                    className="w-full bg-slate-800/50 border border-slate-700 rounded px-1 py-0.5 text-white text-[10px] text-center" />
+                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded px-1 py-0.5 text-slate-600 dark:text-white text-[10px] text-center" />
                             </div>
                             <div>
                                 <label className="text-[8px] text-slate-500">PIX</label>
                                 <input type="number" value={volumePix} onChange={(e) => setVolumePix(Number(e.target.value))}
-                                    className="w-full bg-slate-800/50 border border-slate-700 rounded px-1 py-0.5 text-white text-[10px] text-center" />
+                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded px-1 py-0.5 text-slate-600 dark:text-white text-[10px] text-center" />
                             </div>
                         </div>
                     </div>
                     {/* Share Débito */}
-                    <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-2 text-center flex flex-col justify-center">
-                        <span className="text-blue-400 text-sm">💳</span>
-                        <p className="text-2xl font-bold text-blue-400">{shares.debit.toFixed(0)}%</p>
-                        <p className="text-[10px] text-slate-400">Débito</p>
+                    <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-2 text-center flex flex-col justify-center">
+                        <span className="text-blue-500 dark:text-blue-400 text-sm">💳</span>
+                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{shares.debit.toFixed(0)}%</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Débito</p>
                     </div>
                     {/* Share Crédito */}
-                    <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-2 text-center flex flex-col justify-center">
-                        <span className="text-purple-400 text-sm">💎</span>
-                        <p className="text-2xl font-bold text-purple-400">{shares.credit.toFixed(0)}%</p>
-                        <p className="text-[10px] text-slate-400">Crédito</p>
+                    <div className="bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/30 rounded-lg p-2 text-center flex flex-col justify-center">
+                        <span className="text-purple-500 dark:text-purple-400 text-sm">💎</span>
+                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{shares.credit.toFixed(0)}%</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Crédito</p>
                     </div>
                     {/* Share PIX */}
-                    <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-2 text-center flex flex-col justify-center">
-                        <span className="text-cyan-400 text-sm">⚡</span>
-                        <p className="text-2xl font-bold text-cyan-400">{shares.pix.toFixed(0)}%</p>
-                        <p className="text-[10px] text-slate-400">PIX</p>
+                    <div className="bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/30 rounded-lg p-2 text-center flex flex-col justify-center">
+                        <span className="text-cyan-500 dark:text-cyan-400 text-sm">⚡</span>
+                        <p className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{shares.pix.toFixed(0)}%</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">PIX</p>
                     </div>
                 </div>
             )}
 
             {/* Modo Avançado - Bandeiras + Volume Inline */}
             {mode === 'advanced' && (
-                <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-2 space-y-2">
+                <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg p-2 space-y-2 shadow-sm">
                     {/* Bandeiras Toggle */}
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[10px] text-slate-500">Bandeiras:</span>
                         {brandConfigs.map(config => (
                             <button key={config.name} onClick={() => toggleBrand(config.name)}
-                                className={`px-2 py-0.5 text-[10px] rounded border ${config.enabled ? 'bg-[#00A868]/20 border-[#00A868]/50 text-[#00A868]' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
+                                className={`px-2 py-0.5 text-[10px] rounded border ${config.enabled ? 'bg-[#00A868]/10 dark:bg-[#00A868]/20 border-[#00A868]/30 dark:border-[#00A868]/50 text-[#00A868]' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'}`}>
                                 {config.name}
                             </button>
                         ))}
@@ -513,24 +582,24 @@ export default function ComparativoPage() {
                             const brand = CARD_BRANDS.find(cb => cb.name === config.name);
                             const vol = brandVolumes[config.name] || { debit: 0, credit: 0 };
                             return (
-                                <div key={config.name} className="bg-slate-800/50 border border-slate-700 rounded p-1">
-                                    <p className="text-[10px] font-medium truncate" style={{ color: brand?.color || '#fff' }}>{config.name}</p>
+                                <div key={config.name} className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded p-1">
+                                    <p className="text-[10px] font-medium truncate" style={{ color: brand?.color || '#00A868' }}>{config.name}</p>
                                     <div className="flex gap-1 mt-0.5">
                                         <input type="number" value={vol.debit} placeholder="D"
                                             onChange={(e) => setBrandVolumes({ ...brandVolumes, [config.name]: { ...vol, debit: Number(e.target.value) } })}
-                                            className="w-full bg-slate-900 border border-slate-600 rounded px-1 py-0.5 text-white text-[10px] text-center" />
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 text-slate-700 dark:text-white text-[10px] text-center" />
                                         <input type="number" value={vol.credit} placeholder="C"
                                             onChange={(e) => setBrandVolumes({ ...brandVolumes, [config.name]: { ...vol, credit: Number(e.target.value) } })}
-                                            className="w-full bg-slate-900 border border-slate-600 rounded px-1 py-0.5 text-white text-[10px] text-center" />
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 text-slate-700 dark:text-white text-[10px] text-center" />
                                     </div>
                                 </div>
                             );
                         })}
                         {/* PIX */}
-                        <div className="bg-slate-800/50 border border-cyan-500/30 rounded p-1">
-                            <p className="text-[10px] font-medium text-cyan-400">⚡ PIX</p>
+                        <div className="bg-cyan-50 dark:bg-slate-800/50 border border-cyan-200 dark:border-cyan-500/30 rounded p-1">
+                            <p className="text-[10px] font-medium text-cyan-600 dark:text-cyan-400">⚡ PIX</p>
                             <input type="number" value={pixVolume} onChange={(e) => setPixVolume(Number(e.target.value))}
-                                className="w-full bg-slate-900 border border-cyan-500/30 rounded px-1 py-0.5 text-white text-[10px] text-center mt-0.5" />
+                                className="w-full bg-white dark:bg-slate-900 border border-cyan-200 dark:border-cyan-500/30 rounded px-1 py-0.5 text-slate-700 dark:text-white text-[10px] text-center mt-0.5" />
                         </div>
                     </div>
                 </div>
@@ -540,7 +609,7 @@ export default function ComparativoPage() {
             {mode === 'simple' && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
                     {/* Container Stone */}
-                    <div className="bg-slate-900/50 border border-[#00A868]/30 rounded-lg overflow-hidden">
+                    <div className="bg-white dark:bg-slate-900/50 border border-[#00A868]/30 rounded-lg overflow-hidden shadow-sm">
                         <div className="bg-[#00A868] px-3 py-1.5 flex items-center justify-between">
                             <span className="text-white font-bold text-sm">Stone</span>
                             <span className="text-white/80 text-[10px]">Taxas MDR</span>
@@ -555,18 +624,18 @@ export default function ComparativoPage() {
                                 { label: 'Antecipação (RAV)', key: 'rav' },
                                 { label: 'PIX', key: 'pix' },
                             ].map((row) => (
-                                <div key={row.key} className="flex items-center justify-between py-0.5 border-b border-slate-800/50">
-                                    <span className="text-[10px] text-slate-400">{row.label}</span>
+                                <div key={row.key} className="flex items-center justify-between py-0.5 border-b border-slate-100 dark:border-slate-800/50">
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400">{row.label}</span>
                                     <input type="number" step="0.01" value={stoneSimple[row.key as keyof BrandRates]}
                                         onChange={(e) => setStoneSimple({ ...stoneSimple, [row.key]: Number(e.target.value) })}
-                                        className="w-16 bg-slate-800 border border-[#00A868]/30 rounded px-1 py-0.5 text-[#00A868] text-xs text-center font-medium" />
+                                        className="w-16 bg-emerald-50 dark:bg-slate-800 border border-[#00A868]/30 rounded px-1 py-0.5 text-[#00A868] text-xs text-center font-medium" />
                                 </div>
                             ))}
                         </div>
                     </div>
 
                     {/* Container Concorrente */}
-                    <div className="bg-slate-900/50 border border-red-500/30 rounded-lg overflow-hidden">
+                    <div className="bg-white dark:bg-slate-900/50 border border-red-500/30 rounded-lg overflow-hidden shadow-sm">
                         <div className="px-3 py-1.5 flex items-center justify-between" style={{ backgroundColor: competitor.color }}>
                             <select value={competitorId} onChange={(e) => setCompetitorId(e.target.value)}
                                 className="bg-transparent border-0 text-white font-bold text-sm focus:ring-0 cursor-pointer">
@@ -584,20 +653,20 @@ export default function ComparativoPage() {
                                 { label: 'Antecipação (RAV)', key: 'rav' },
                                 { label: 'PIX', key: 'pix' },
                             ].map((row) => (
-                                <div key={row.key} className="flex items-center justify-between py-0.5 border-b border-slate-800/50">
-                                    <span className="text-[10px] text-slate-400">{row.label}</span>
+                                <div key={row.key} className="flex items-center justify-between py-0.5 border-b border-slate-100 dark:border-slate-800/50">
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400">{row.label}</span>
                                     <input type="number" step="0.01" value={competitorSimple[row.key as keyof BrandRates]}
                                         onChange={(e) => setCompetitorSimple({ ...competitorSimple, [row.key]: Number(e.target.value) })}
-                                        className="w-16 bg-slate-800 border border-red-500/30 rounded px-1 py-0.5 text-red-400 text-xs text-center font-medium" />
+                                        className="w-16 bg-red-50 dark:bg-slate-800 border border-red-500/30 rounded px-1 py-0.5 text-red-400 text-xs text-center font-medium" />
                                 </div>
                             ))}
                         </div>
                     </div>
 
                     {/* Container Diferença */}
-                    <div className="bg-slate-900/50 border border-slate-700 rounded-lg overflow-hidden">
-                        <div className="bg-slate-700 px-3 py-1.5">
-                            <span className="text-white font-bold text-sm">Diferença</span>
+                    <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm">
+                        <div className="bg-slate-100 dark:bg-slate-700 px-3 py-1.5">
+                            <span className="text-slate-700 dark:text-white font-bold text-sm">Diferença</span>
                         </div>
                         <div className="p-2">
                             {[
@@ -611,9 +680,9 @@ export default function ComparativoPage() {
                             ].map((row) => {
                                 const diff = competitorSimple[row.key as keyof BrandRates] - stoneSimple[row.key as keyof BrandRates];
                                 return (
-                                    <div key={row.key} className="flex items-center justify-between py-0.5 border-b border-slate-800/50">
-                                        <span className="text-[10px] text-slate-400">{row.label}</span>
-                                        <span className={`text-xs font-bold ${diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                                    <div key={row.key} className="flex items-center justify-between py-0.5 border-b border-slate-100 dark:border-slate-800/50">
+                                        <span className="text-[10px] text-slate-500 dark:text-slate-400">{row.label}</span>
+                                        <span className={`text-xs font-bold ${diff > 0 ? 'text-emerald-600 dark:text-emerald-400' : diff < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-400'}`}>
                                             {diff > 0 ? '+' : ''}{diff.toFixed(2)}%
                                         </span>
                                     </div>
@@ -627,8 +696,8 @@ export default function ComparativoPage() {
             {mode === 'advanced' && (
                 // Modo Avançado - Por Bandeira
                 enabledBrands.map(config => (
-                    <div key={config.name} className="border-b border-slate-700">
-                        <div className="px-3 py-2 bg-slate-800/30 text-xs font-semibold text-white flex items-center gap-2">
+                    <div key={config.name} className="border-b border-slate-200 dark:border-slate-700">
+                        <div className="px-3 py-2 bg-slate-100 dark:bg-slate-800/30 text-xs font-semibold text-slate-700 dark:text-white flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-[#00A868]"></span>
                             {config.name}
                         </div>
@@ -638,19 +707,19 @@ export default function ComparativoPage() {
                             const compVal = competitorBrands[config.name]?.[key as keyof BrandRates] || 0;
                             const diff = compVal - stoneVal;
                             return (
-                                <div key={key} className="grid grid-cols-4 border-b border-slate-800/30 items-center">
-                                    <div className="px-3 py-1 text-xs text-slate-400 pl-6">{labels[key]}</div>
+                                <div key={key} className="grid grid-cols-4 border-b border-slate-100 dark:border-slate-800/30 items-center">
+                                    <div className="px-3 py-1 text-xs text-slate-500 dark:text-slate-400 pl-6">{labels[key]}</div>
                                     <div className="px-2 py-0.5">
                                         <input type="number" step="0.01" value={stoneVal}
                                             onChange={(e) => setStoneBrands({ ...stoneBrands, [config.name]: { ...stoneBrands[config.name], [key]: Number(e.target.value) } })}
-                                            className="w-full max-w-[55px] mx-auto block bg-slate-800 border border-[#00A868]/30 rounded px-1 py-0.5 text-[#00A868] text-xs text-center" />
+                                            className="w-full max-w-[55px] mx-auto block bg-white dark:bg-slate-800 border border-[#00A868]/30 rounded px-1 py-0.5 text-[#00A868] text-xs text-center" />
                                     </div>
                                     <div className="px-2 py-0.5">
                                         <input type="number" step="0.01" value={compVal}
                                             onChange={(e) => setCompetitorBrands({ ...competitorBrands, [config.name]: { ...competitorBrands[config.name], [key]: Number(e.target.value) } })}
-                                            className="w-full max-w-[55px] mx-auto block bg-slate-800 border border-red-500/30 rounded px-1 py-0.5 text-red-400 text-xs text-center" />
+                                            className="w-full max-w-[55px] mx-auto block bg-white dark:bg-slate-800 border border-red-500/30 rounded px-1 py-0.5 text-red-500 dark:text-red-400 text-xs text-center" />
                                     </div>
-                                    <div className={`px-2 py-1 text-xs text-center font-bold ${diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                                    <div className={`px-2 py-1 text-xs text-center font-bold ${diff > 0 ? 'text-emerald-600 dark:text-emerald-400' : diff < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-400'}`}>
                                         {diff > 0 ? '+' : ''}{diff.toFixed(2)}%
                                     </div>
                                 </div>
@@ -663,19 +732,19 @@ export default function ComparativoPage() {
             {/* Aluguel de Máquinas - Design Moderno */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {/* Stone Máquinas - Card Futurista */}
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#00A868]/20 via-slate-900/80 to-slate-900/90 border border-[#00A868]/40 backdrop-blur-xl">
-                    {/* Glow Effect */}
-                    <div className="absolute -top-20 -right-20 w-40 h-40 bg-[#00A868]/20 rounded-full blur-3xl" />
+                <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-linear-to-br dark:from-[#00A868]/20 dark:via-slate-900/80 dark:to-slate-900/90 border border-slate-200 dark:border-[#00A868]/40 dark:backdrop-blur-xl shadow-sm">
+                    {/* Glow Effect (Dark only) */}
+                    <div className="hidden dark:block absolute -top-20 -right-20 w-40 h-40 bg-[#00A868]/20 rounded-full blur-3xl" />
 
                     {/* Header */}
-                    <div className="relative px-4 py-3 border-b border-[#00A868]/20">
+                    <div className="relative px-4 py-3 border-b border-slate-200 dark:border-[#00A868]/20 bg-slate-50 dark:bg-transparent">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-lg bg-[#00A868]/30 flex items-center justify-center">
+                                <div className="w-8 h-8 rounded-lg bg-[#00A868]/20 dark:bg-[#00A868]/30 flex items-center justify-center">
                                     <span className="text-lg">🖥️</span>
                                 </div>
                                 <div>
-                                    <span className="text-white font-bold text-sm">Máquinas Stone</span>
+                                    <span className="text-slate-900 dark:text-white font-bold text-sm">Máquinas Stone</span>
                                     {(() => {
                                         // Cálculo de máquinas isentas por volume
                                         const tpv = mode === 'simple' ? volumeTotal : advancedTotalVolume;
@@ -709,7 +778,7 @@ export default function ComparativoPage() {
                                         alert('TPV mínimo de R$ 10.000 para isenção');
                                     }
                                 }}
-                                className="px-3 py-1.5 bg-[#00A868]/30 hover:bg-[#00A868]/50 border border-[#00A868]/50 rounded-lg text-[10px] text-[#00A868] font-medium transition-all hover:scale-105"
+                                className="px-3 py-1.5 bg-[#00A868]/10 hover:bg-[#00A868]/20 dark:bg-[#00A868]/30 dark:hover:bg-[#00A868]/50 border border-[#00A868]/30 dark:border-[#00A868]/50 rounded-lg text-[10px] text-[#00A868] font-medium transition-all hover:scale-105"
                             >
                                 ⚡ Isenção por Volume
                             </button>
@@ -720,16 +789,16 @@ export default function ComparativoPage() {
                     <div className="relative p-4 space-y-3">
                         <div className="grid grid-cols-3 gap-3">
                             <div>
-                                <label className="text-[10px] text-slate-400 block mb-1">Modelo</label>
+                                <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-1">Modelo</label>
                                 <select value={stoneModelo} onChange={(e) => setStoneModelo(e.target.value)}
-                                    className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-2 py-2 text-white text-xs focus:border-[#00A868]/50 focus:ring-1 focus:ring-[#00A868]/30 transition-all">
+                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600/50 rounded-lg px-2 py-2 text-slate-900 dark:text-white text-xs focus:border-[#00A868]/50 focus:ring-1 focus:ring-[#00A868]/30 transition-all">
                                     {STONE_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                                 </select>
                             </div>
                             <div>
-                                <label className="text-[10px] text-slate-400 block mb-1">Quantidade</label>
+                                <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-1">Quantidade</label>
                                 <input type="number" min="1" value={stoneQtdMaquinas} onChange={(e) => setStoneQtdMaquinas(Number(e.target.value))}
-                                    className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-2 py-2 text-white text-xs text-center focus:border-[#00A868]/50 focus:ring-1 focus:ring-[#00A868]/30 transition-all" />
+                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600/50 rounded-lg px-2 py-2 text-slate-900 dark:text-white text-xs text-center focus:border-[#00A868]/50 focus:ring-1 focus:ring-[#00A868]/30 transition-all" />
                             </div>
                             <div>
                                 <label className="text-[10px] text-slate-400 block mb-1">Aluguel/mês</label>
@@ -752,17 +821,17 @@ export default function ComparativoPage() {
                 </div>
 
                 {/* Concorrente Máquinas - Card Futurista */}
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-500/10 via-slate-900/80 to-slate-900/90 border border-red-500/30 backdrop-blur-xl">
-                    {/* Glow Effect */}
-                    <div className="absolute -top-20 -right-20 w-40 h-40 bg-red-500/10 rounded-full blur-3xl" />
+                <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-linear-to-br dark:from-red-500/10 dark:via-slate-900/80 dark:to-slate-900/90 border border-slate-200 dark:border-red-500/30 dark:backdrop-blur-xl shadow-sm">
+                    {/* Glow Effect (Dark only) */}
+                    <div className="hidden dark:block absolute -top-20 -right-20 w-40 h-40 bg-red-500/10 rounded-full blur-3xl" />
 
                     {/* Header */}
-                    <div className="relative px-4 py-3 border-b border-red-500/20">
+                    <div className="relative px-4 py-3 border-b border-slate-200 dark:border-red-500/20 bg-slate-50 dark:bg-transparent">
                         <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-lg bg-red-500/10 dark:bg-red-500/20 flex items-center justify-center">
                                 <span className="text-lg">🖥️</span>
                             </div>
-                            <span className="font-bold text-sm" style={{ color: competitor.color }}>Máquinas {competitorName}</span>
+                            <span className="font-bold text-sm text-slate-900 dark:text-white" style={{ color: competitor.color }}>Máquinas {competitorName}</span>
                         </div>
                     </div>
 
@@ -770,55 +839,55 @@ export default function ComparativoPage() {
                     <div className="relative p-4 space-y-3">
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="text-[10px] text-slate-400 block mb-1">Quantidade</label>
+                                <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-1">Quantidade</label>
                                 <input type="number" min="1" value={competitorQtdMaquinas} onChange={(e) => setCompetitorQtdMaquinas(Number(e.target.value))}
-                                    className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-2 py-2 text-white text-xs text-center focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30 transition-all" />
+                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600/50 rounded-lg px-2 py-2 text-slate-900 dark:text-white text-xs text-center focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30 transition-all" />
                             </div>
                             <div>
-                                <label className="text-[10px] text-slate-400 block mb-1">Aluguel/mês (cada)</label>
+                                <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-1">Aluguel/mês (cada)</label>
                                 <input type="number" step="0.01" value={competitorAluguel} onChange={(e) => setCompetitorAluguel(Number(e.target.value))}
-                                    className="w-full bg-slate-800/50 border border-red-500/30 rounded-lg px-2 py-2 text-red-400 text-xs text-center font-medium focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30 transition-all" />
+                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-red-500/30 rounded-lg px-2 py-2 text-red-500 dark:text-red-400 text-xs text-center font-medium focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30 transition-all" />
                             </div>
                         </div>
 
                         {/* Total */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
-                            <span className="text-xs text-slate-400">Total Mensal:</span>
-                            <span className="text-lg font-bold text-red-400">{formatCurrency(competitorRentalCost)}</span>
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700/50">
+                            <span className="text-xs text-slate-500 dark:text-slate-400">Total Mensal:</span>
+                            <span className="text-lg font-bold text-red-500 dark:text-red-400">{formatCurrency(competitorRentalCost)}</span>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Resumo Final - Custos + Economia */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3">
+            <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg p-3 shadow-sm">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {/* Stone Total */}
                     <div className="bg-[#00A868]/10 border border-[#00A868]/30 rounded-lg p-2 text-center">
-                        <p className="text-[10px] text-slate-400 mb-1">💎 Stone Total</p>
-                        <p className="text-[10px] text-slate-400">Taxas: {formatCurrency(stoneCosts.total)}</p>
-                        <p className="text-[10px] text-slate-400">Aluguel: {formatCurrency(stoneRentalCost)}</p>
+                        <p className="text-[10px] text-slate-600 dark:text-slate-400 mb-1">💎 Stone Total</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Taxas: {formatCurrency(stoneCosts.total)}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Aluguel: {formatCurrency(stoneRentalCost)}</p>
                         <p className="text-lg font-bold text-[#00A868]">{formatCurrency(totalStoneCost)}</p>
                     </div>
 
                     {/* Concorrente Total */}
                     <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2 text-center">
-                        <p className="text-[10px] text-slate-400 mb-1">{competitor.icon} {competitorName} Total</p>
-                        <p className="text-[10px] text-slate-400">Taxas: {formatCurrency(competitorCosts.total)}</p>
-                        <p className="text-[10px] text-slate-400">Aluguel: {formatCurrency(competitorRentalCost)}</p>
-                        <p className="text-lg font-bold text-red-400">{formatCurrency(totalCompetitorCost)}</p>
+                        <p className="text-[10px] text-slate-600 dark:text-slate-400 mb-1">{competitor.icon} {competitorName} Total</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Taxas: {formatCurrency(competitorCosts.total)}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Aluguel: {formatCurrency(competitorRentalCost)}</p>
+                        <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(totalCompetitorCost)}</p>
                     </div>
 
                     {/* Economia */}
-                    <div className={`rounded-lg p-2 text-center ${economy > 0 ? 'bg-[#00A868]/20 border border-[#00A868]/50' : economy < 0 ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-slate-700/50 border border-slate-600'}`}>
-                        <p className="text-[10px] text-slate-400 mb-1">💰 Economia Mensal</p>
+                    <div className={`rounded-lg p-2 text-center ${economy > 0 ? 'bg-[#00A868]/20 border border-[#00A868]/50' : economy < 0 ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600'}`}>
+                        <p className="text-[10px] text-slate-600 dark:text-slate-400 mb-1">💰 Economia Mensal</p>
                         {rentalEconomy !== 0 && (
-                            <p className="text-[10px] text-slate-400">Aluguel: {rentalEconomy > 0 ? '+' : ''}{formatCurrency(rentalEconomy)}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">Aluguel: {rentalEconomy > 0 ? '+' : ''}{formatCurrency(rentalEconomy)}</p>
                         )}
                         <p className="text-2xl font-bold" style={{ color: economy > 0 ? '#00A868' : economy < 0 ? '#f59e0b' : '#94a3b8' }}>
                             {economy > 0 ? '+' : ''}{formatCurrency(economy)}
                         </p>
-                        <p className="text-[10px] text-slate-400">{economyPercent.toFixed(1)}% {economy > 0 ? 'mais barato' : economy < 0 ? 'mais caro' : 'igual'}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">{economyPercent.toFixed(1)}% {economy > 0 ? 'mais barato' : economy < 0 ? 'mais caro' : 'igual'}</p>
                     </div>
                 </div>
             </div>

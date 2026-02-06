@@ -27,13 +27,10 @@ const DEFAULT_BRANDS = [
 ];
 
 export default function CETCalculator() {
-    const [ravRate, setRavRate] = useState(1.30);
-    const [containers, setContainers] = useState<BrandContainer[]>([
-        { id: '1', name: 'VISA/MASTER', debit: 0.84, credit1x: 1.86, credit2to6: 2.18, credit7to12: 2.41, credit13to18: 2.41 },
-    ]);
-    const [isLoaded, setIsLoaded] = useState(false);
+    // Estado do Contrato
+    const [contractType, setContractType] = useState<'fidelity' | 'adhesion'>('fidelity');
 
-    // Carregar dados salvos ao iniciar
+    // Carregar dados salvos ao iniciar (Mantido)
     useEffect(() => {
         const savedData = localStorage.getItem('casa94_stone_rates');
         if (savedData) {
@@ -123,7 +120,7 @@ export default function CETCalculator() {
 
     const inputClass = "w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors";
 
-    // Exportar PDF - Layout Profissional Adaptativo
+    // Exportar PDF - Layout Profissional Adaptativo com Boxes
     const exportPDF = () => {
         const clienteNome = prompt('Nome da Empresa/Cliente:')?.trim();
         if (!clienteNome) return;
@@ -139,7 +136,7 @@ export default function CETCalculator() {
         let fontSizeTitle = 14;
         let fontSizeBody = 10;
         let fontSizeHead = 8;
-        let cellPadding = 1.5; // (doc as any).
+        let cellPadding = 1.5;
 
         // Estratégia de Grid
         // 1-2 itens: 1 coluna (Layout original)
@@ -166,34 +163,80 @@ export default function CETCalculator() {
 
         // Header HEADER
         doc.setFillColor(0, 168, 104);
-        doc.rect(0, 0, pageWidth, 35, 'F');
+        doc.rect(0, 0, pageWidth, 40, 'F'); // Aumentei um pouco para 40
 
         // Título Centralizado
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(24);
         doc.setFont('helvetica', 'bold');
-        doc.text('STONE', pageWidth / 2, 14, { align: 'center' });
+        doc.text('STONE', pageWidth / 2, 18, { align: 'center' });
 
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text('PROPOSTA DE TAXAS', pageWidth / 2, 21, { align: 'center' });
-
-        // Nome do Cliente no Header (Centralizado abaixo do título)
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.text(clienteNome.toUpperCase(), pageWidth / 2, 29, { align: 'center' });
+        doc.text('PROPOSTA DE TAXAS - CET', pageWidth / 2, 25, { align: 'center' });
 
         // Data e CNPJ nas pontas
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
         doc.text(new Date().toLocaleDateString('pt-BR'), pageWidth - 10, 10, { align: 'right' });
 
-        if (clienteCNPJ) {
-            doc.text(clienteCNPJ, 10, 10, { align: 'left' });
+
+        // === QUADRINHOS INFORMATIVOS (Abaixo do Header) ===
+        const boxesY = 45;
+
+        // Box 1: Taxa de Antecipação
+        doc.setFillColor(240, 253, 244); // Fundo claro verde
+        doc.setDrawColor(0, 168, 104); // Borda verde
+        doc.rect(15, boxesY, 60, 22, 'FD');
+
+        doc.setFontSize(8);
+        doc.setTextColor(0, 168, 104);
+        doc.setFont('helvetica', 'bold');
+        doc.text('TAXA DE ANTECIPAÇÃO', 45, boxesY + 5, { align: 'center' });
+
+        doc.setFontSize(14);
+        doc.setTextColor(50, 50, 50);
+        doc.text(`${ravRate.toFixed(2)}% ao mês`, 45, boxesY + 15, { align: 'center' });
+
+        // Box 2: Regras de Contrato / Isenção
+        doc.setFillColor(248, 250, 252); // Fundo cinza claro
+        doc.setDrawColor(148, 163, 184); // Borda cinza
+        doc.rect(80, boxesY, 130, 22, 'FD'); // Mais largo
+
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105);
+        doc.setFont('helvetica', 'bold');
+
+        const contractLabel = contractType === 'fidelity' ? 'FIDELIDADE 13 MESES' : 'TERMO DE ADESÃO';
+        doc.text(contractLabel, 145, boxesY + 5, { align: 'center' });
+
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(50, 50, 50);
+
+        if (contractType === 'fidelity') {
+            doc.text('(Primeiro mês isento)', 145, boxesY + 9, { align: 'center' });
+            doc.text(`Regra de Isenção por TPV:`, 145, boxesY + 14, { align: 'center' });
+            doc.text(`10k(1 maq), 30k(2), 50k(4) e +2 maquinas a cada 50k adicionais.`, 145, boxesY + 18, { align: 'center' });
+        } else {
+            // Adesão
+            doc.text('Valor: R$ 478,80', 145, boxesY + 9, { align: 'center' });
+            doc.text('Isenção aplicada se houver mais de 1 máquina no termo de adesão.', 145, boxesY + 15, { align: 'center' });
+            doc.text('Caso contrário, valor integral na primeira máquina.', 145, boxesY + 19, { align: 'center' });
         }
 
+        // Nome do Cliente (abaixo dos boxes)
+        doc.setTextColor(50, 50, 50);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`CLIENTE: ${clienteNome.toUpperCase()}`, margin, boxesY + 30);
+        if (clienteCNPJ) {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.text(`CNPJ/CPF: ${clienteCNPJ}`, margin, boxesY + 35);
+        }
 
-        let startY = 45;
+        let startY = boxesY + 40; // Ajustado para baixo dos boxes
         let startX = margin;
 
         // Renderização em Grid
@@ -207,23 +250,9 @@ export default function CETCalculator() {
             // X position
             const currentX = margin + (colIndex * (colWidth + colGap));
 
-            // Y position setup (precisamos estimar altura ou resetar Y)
-            // Simples: assumir altura fixa por bloco para calcular Y do próximo
-            // Altura estimada bloco: Titulo(6) + MDR(20) + CET(40) ~ 70mm
-            // Se gridCols > 1, usamos lógica de linha
-
-            // Reiniciar Y se mudou de linha (mas apenas se não for a primeira)
-            // Como autotable avança o cursor Y globalmente, para grid precisamos forçar Y
-            // Para simplificar: Vamos calcular Y fixo baseado no row index
-            // Altura segura por linha de grid:
-            const rowHeight = (pageHeight - 50) / Math.ceil(totalItems / gridCols);
-            const currentY = 45 + (rowIndex * rowHeight);
-
-            // Se exceder pagina (muito improvavel com essa logica de rowHeight auto, mas previnimos)
-            if (currentY > pageHeight - 20) {
-                // Break page logic seria complexo com grid, assumindo "Fit One Page" conforme pedido
-                // Se não couber, vai cortar.
-            }
+            // Y position setup
+            const rowHeight = (pageHeight - (boxesY + 50)) / Math.ceil(totalItems / gridCols); // Ajustado altura disponivel
+            const currentY = startY + (rowIndex * rowHeight);
 
             // Nome da bandeira
             doc.setFontSize(fontSizeTitle);
@@ -284,16 +313,15 @@ export default function CETCalculator() {
             });
         });
 
-        // Info RAV e rodapé
+        // Info RAV e rodapé (Footer removido)
         doc.setFontSize(8);
         doc.setTextColor(120, 120, 120);
-        doc.text(`Antecipação (RAV): ${ravRate}%/mês`, 10, pageHeight - 10);
-        doc.text('Proposta Stone - Válida por 30 dias', pageWidth - 10, pageHeight - 10, { align: 'right' });
+        // doc.text('Proposta Stone - Válida... removido');
 
         doc.save(`Proposta_${clienteNome.replace(/\s+/g, '_')}_CET.pdf`);
     };
 
-    // Exportar Excel - Layout Profissional
+    // Exportar Excel - Layout Profissional (Atualizado com Contrato)
     const exportExcel = () => {
         // Prompt para dados do cliente
         const clienteNome = prompt('Nome da Empresa/Cliente:')?.trim();
@@ -301,11 +329,12 @@ export default function CETCalculator() {
         const clienteCNPJ = prompt('CNPJ/CPF (opcional):')?.trim() || '';
 
         const wsData: (string | number)[][] = [
-            ['STONE - PROPOSTA DE TAXAS'],
+            ['STONE - PROPOSTA DE TAXAS (CET)'],
             [''],
             ['Cliente:', clienteNome],
             clienteCNPJ ? ['CNPJ/CPF:', clienteCNPJ] : [],
             ['Data:', new Date().toLocaleDateString('pt-BR')],
+            ['Contrato:', contractType === 'fidelity' ? 'Fidelidade 13 meses' : 'Adesão'],
             ['RAV (Antecipação):', `${ravRate}%/mês`],
             [''],
         ].filter(row => row.length > 0);
@@ -347,6 +376,16 @@ export default function CETCalculator() {
                     <p className="text-slate-500 dark:text-slate-400 text-sm">CET = 1 - ((100 × (1 - MDR)) × (1 - (RAV × média_meses))) / 100</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                    {/* Contract Toggle */}
+                    <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 mr-2">
+                        <button onClick={() => setContractType('fidelity')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${contractType === 'fidelity' ? 'bg-purple-600 text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'}`}>
+                            Fidelidade
+                        </button>
+                        <button onClick={() => setContractType('adhesion')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${contractType === 'adhesion' ? 'bg-orange-600 text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'}`}>
+                            Adesão
+                        </button>
+                    </div>
+
                     <div className="flex items-center gap-2">
                         <span className="text-sm text-slate-500 dark:text-slate-400">RAV (%/mês):</span>
                         <input
